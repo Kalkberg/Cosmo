@@ -122,6 +122,7 @@ M[0,4]=np.exp(-.5*L2)
 print("Running Model...")
 
 # Run model
+#
 for j in range(1,Run):
     # If the number of retained models meets the required value, end the loop
     if s==(Ret*Thin+Burn):
@@ -220,6 +221,9 @@ with open(Out_File+'Tested_Models.csv', 'w') as TMcsvfile:
         
 print("Generating Plots...")
 
+# Create table of model results
+#
+
 # Generate arguments to plug into LaTeX code
 Targs=Namespace(TexM=TexM, TexMed=TexMed, TexSD=TexSD, BestTex=BestTex,
                InhM=InhM, InhMed=InhMed, InhSD=InhSD, BestInh=BestInh,
@@ -275,8 +279,9 @@ NtotMed = ClTot(TexMed, InhMed, RdMed, EroMed, LCl, Af, Leth, Lth, Am, Js,
 # Pre-allocate matrix for depth profile plot and reset counter
 MCl = np.zeros([len(TexRPThin)*len(dp),2]) 
 
-#Set up plot
-f1=plot.figure(1)
+# Set up figure 1
+#
+f1 = plot.figure()
 plot.xlabel('Atoms 36Cl/g')
 plot.ylabel('Depth (cm)')
 plot.gca().invert_yaxis()
@@ -288,7 +293,7 @@ for i in range(0,len(TexRPThin)):
                      LCl, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm, Nr, dp)
     q = q + 1 # Increase counter by one
     MCl[q*len(dp)-(len(dp)-1):q*len(dp),:] = [np.transpose(NtotPlot),
-        np.transpose(dp)] # Add to array of retained values
+        np.transpose(dp)] # Add to array of retained values for density plot
     if LikNormPThin[i] <= LikNormMid: # Set color to plot based on likelihood
         color = [1, 1 , (200 * ((LikNormMid - LikNormPThin[i])/
                                 (LikNormMid - LikNormMin)))/255]
@@ -305,3 +310,58 @@ plot.plot(NtotMed, dp, color='c', linewidth=1.5, label='Median') # Median model 
 plot.plot(NtotBest, dp, color='r', linewidth=1.5, label='Best Fit') # Best fit model as red line
 plot.errorbar(Cl, depth, xerr=Clerr, fmt='bs', markerfacecolor='none', label='data') # Data
 plot.legend(loc=4)
+f1.savefig('f1.pdf')
+plot.close('all')
+
+# Set up figure 2
+#
+f2 = plot.figure()
+plot.xlabel('Atoms 36Cl/g')
+plot.ylabel('Depth (cm)')
+plot.gca().invert_yaxis()
+plot.title('Depth Profile Colored by Density')
+
+# Calculate point density
+location = np.vstack([MCl[:,1],MCl[:,2]])
+density = scipy.stats.gaussian_kde(location)(location)
+
+# Set up a regular grid of interpolation points
+depth_i, atoms_i = np.linspace(MCl[:,1].min(), MCl[:,1].max(), 100), \
+    np.linspace(MCl[:,2].min(), MCl[:,2].max(), 100)
+depth_i, atoms_i = np.meshgrid(depth_i, atoms_i)
+
+# Interpolate over grid
+density_i = scipy.interpolate.griddata((MCl[:,1], MCl[:,2]), density,
+                (depth_i, atoms_i), method='cubic', fill_value=0)
+
+# Plot interpolated density surface
+plot.imshow(density_i, vmin=density.min(),vmax=density.max())
+plot.colorbar()
+
+# Plot model results and data
+plot.plot(NtotM, dp, 'k:', linewidth=1.5, label='Mean')
+plot.plot(NtotMed, dp, 'k--', linewidth=1.5, label='Median')
+plot.plot(NtotBest, dp, 'k', linewidth=1.5, label='Best Fit')
+plot.errorbar(Cl, depth, xerr=Clerr, fmt='ks', markerfacecolor='white', label='data')
+plot.legend(loc=4)
+f2.savefig('f2.pdf')
+plot.close('all')
+
+# Set up figure 3
+#
+f3 = plot.figure()
+plot.title('Kernel Density of Retaind Models')
+ax1 = f3.add_subplot(1,1)
+ax1.plot(np.sort(TexR),scipy.stats.gaussian_kde(np.sort(TexR))(np.sort(TexR)))
+ax1.set_xlabel('Exposure Age (ka)')
+ax2 = f3.add_subplot(1,2)
+ax2.plot(np.sort(RdR),scipy.stats.gaussian_kde(np.sort(RdR))(np.sort(RdR)))
+ax2.set_xlabel('Rock Density (g/cm^3)')
+ax3 = f3.add_subplot(2,1)
+ax3.plot(np.sort(InhR),scipy.stats.gaussian_kde(np.sort(InhR))(np.sort(InhR)))
+ax3.set_xlabel('Inheritance (Atoms 36Cl/g)')
+ax4 = f3.add_subplot(2,2)
+ax4.plot(np.sort(EroR),scipy.stats.gaussian_kde(np.sort(EroR))(np.sort(EroR)))
+ax4.set_xlabel('Erosion Rate (cm/yr)')
+f3.savefig('f3.pdf')
+plot.close('all')
