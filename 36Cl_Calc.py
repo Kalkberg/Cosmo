@@ -112,7 +112,21 @@ def ClTot(Tex, Inh, Rd, Ero, LCl, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm, Nr,
     #Total 36Cl
     Ntot=Sn*St*(Ns+Neth+Nth+Nm)+Nr+Inh
     return Ntot
-    
+
+# Define function to create density surface from unequaly spaced data
+def DenSurf(x,y):
+    # Calculate point density
+    location = np.vstack([x,y])
+    density = scipy.stats.gaussian_kde(location)(location)
+    # Set up a regular grid of interpolation points
+    x_i, y_i = np.linspace(x.min(), x.max(), 100), \
+    np.linspace(y.min(), y.max(), 100)
+    x_i, y_i = np.meshgrid(x_i, y_i)
+    # Interpolate over grid
+    density_i = scipy.interpolate.griddata((x, y), density,
+                (x_i, y_i), method='cubic', fill_value=0)
+    return density_i, density
+
 # Calculate likelihood of first model and store to model matrix
 Ntot=ClTot(M[0,0], M[0,1], M[0,2], M[0,3], LCl, Af, Leth, Lth, Am, Js, Jeth, 
            Jth, Jm, Nr, depth)
@@ -163,10 +177,10 @@ RMThin=RM[1::Thin,:] # Thin retained models for statistical analysis
 RMThin=RMThin[np.argsort(-RMThin[:,4],0)] # Sort retained models by likelihood
 
 # Split retained models into parameter vectors for easier interpretation
-TexR=RMThin[:,0]    # Exposure Time (yr)
-InhR=RMThin[:,1]    # Inheritance (atoms 36Cl)
+TexR=RMThin[:,0]/1000    # Exposure Time (yr) now in kyr
+InhR=RMThin[:,1]/(10^6)    # Inheritance (atoms 36Cl) now in atoms x 10^6
 RdR=RMThin[:,2]     # Rock Density (g/cm^3)
-EroR=RMThin[:,3]    # Erosion Rate (cm/yr)
+EroR=RMThin[:,3]*1000    # Erosion Rate (cm/yr) now in cm/kyr
 LikR=RMThin[:,4]    # Model likelihood
 
 # Thin out model results for scatter plots
@@ -297,16 +311,16 @@ for i in range(0,len(TexRPThin)):
                  (255 - (205 * (1 - (LikNormMax - LikNormPThin[i])/
                                 (LikNormMax - LikNormMid))))/255, # G
                 1] #B
-    plot.plot(Ntot,dp, color=color,linewidth=0.5)
+    plot.plot(NtotPlot/(10^6),dp, color=color,linewidth=0.5)
 
-plot.plot(NtotM, dp, color='g', linewidth=1.5, label='Mean') # Mean model as green line
-plot.plot(NtotMed, dp, color='c', linewidth=1.5, label='Median') # Median model as cyan line
-plot.plot(NtotBest, dp, color='r', linewidth=1.5, label='Best Fit') # Best fit model as red line
-plot.errorbar(Cl, depth, xerr=Clerr, fmt='bs', markerfacecolor='none', label='data') # Data
+plot.plot(NtotM/(10^6), dp, color='g', linewidth=1.5, label='Mean') # Mean model as green line
+plot.plot(NtotMed/(10^6), dp, color='c', linewidth=1.5, label='Median') # Median model as cyan line
+plot.plot(NtotBest/(10^6), dp, color='r', linewidth=1.5, label='Best Fit') # Best fit model as red line
+plot.errorbar(Cl/(10^6), depth, xerr=Clerr, fmt='bs', markerfacecolor='none', label='data') # Data
 plot.legend(loc=4)
 
 # Add info and save
-plot.xlabel('Atoms 36Cl/g')
+plot.xlabel('Atoms 36Cl/g x 10^6')
 plot.ylabel('Depth (cm)')
 plot.gca().invert_yaxis()
 plot.title('Depth Profile Colored by Likelihood')
@@ -316,31 +330,21 @@ plot.close('all')
 # Create figure 2
 #
 # Calculate point density
-location = np.vstack([MCl[:,1],MCl[:,2]])
-density = scipy.stats.gaussian_kde(location)(location)
-
-# Set up a regular grid of interpolation points
-depth_i, atoms_i = np.linspace(MCl[:,1].min(), MCl[:,1].max(), 100), \
-    np.linspace(MCl[:,2].min(), MCl[:,2].max(), 100)
-depth_i, atoms_i = np.meshgrid(depth_i, atoms_i)
-
-# Interpolate over grid
-density_i = scipy.interpolate.griddata((MCl[:,1], MCl[:,2]), density,
-                (depth_i, atoms_i), method='cubic', fill_value=0)
+density_i, density = DenSurf (MCl[:,1],MCl[:,2])
 
 # Plot interpolated density surface
 plot.imshow(density_i, vmin=density.min(),vmax=density.max())
 plot.colorbar()
 
 # Plot model results and data
-plot.plot(NtotM, dp, 'k:', linewidth=1.5, label='Mean')
-plot.plot(NtotMed, dp, 'k--', linewidth=1.5, label='Median')
-plot.plot(NtotBest, dp, 'k', linewidth=1.5, label='Best Fit')
-plot.errorbar(Cl, depth, xerr=Clerr, fmt='ks', markerfacecolor='white', label='data')
+plot.plot(NtotM/(10^6), dp, 'k:', linewidth=1.5, label='Mean')
+plot.plot(NtotMed/(10^6), dp, 'k--', linewidth=1.5, label='Median')
+plot.plot(NtotBest/(10^6), dp, 'k', linewidth=1.5, label='Best Fit')
+plot.errorbar(Cl/(10^6), depth, xerr=Clerr, fmt='ks', markerfacecolor='white', label='data')
 plot.legend(loc=4)
 
 # Add info and save
-plot.xlabel('Atoms 36Cl/g')
+plot.xlabel('Atoms 36Cl/g x 10^6')
 plot.ylabel('Depth (cm)')
 plot.gca().invert_yaxis()
 plot.title('Depth Profile Colored by Density')
@@ -350,17 +354,90 @@ plot.close('all')
 # Create figure 3
 #
 plot.title('Kernel Density of Retaind Models')
-ax1 = plot.add_subplot(1,1)
+f, ((ax1, ax2), (ax3, ax4)) = plot.subplots(2,2)
 ax1.plot(np.sort(TexR),scipy.stats.gaussian_kde(np.sort(TexR))(np.sort(TexR)))
+ax1.locator_params(nbins=4)
+#ax1.tick_params(axis='y', pad=20)
 ax1.set_xlabel('Exposure Age (ka)')
-ax2 = plot.add_subplot(1,2)
 ax2.plot(np.sort(RdR),scipy.stats.gaussian_kde(np.sort(RdR))(np.sort(RdR)))
+ax2.locator_params(nbins=4)
+#ax2.tick_params(axis='y', pad=20)
 ax2.set_xlabel('Rock Density (g/cm^3)')
-ax3 = plot.add_subplot(2,1)
 ax3.plot(np.sort(InhR),scipy.stats.gaussian_kde(np.sort(InhR))(np.sort(InhR)))
-ax3.set_xlabel('Inheritance (Atoms 36Cl/g)')
-ax4 = plot.add_subplot(2,2)
-ax4.plot(np.sort(EroR)*1000,scipy.stats.gaussian_kde(np.sort(EroR))(np.sort(EroR)))
+#ax3.tick_params(axis='y', pad=20)
+ax3.locator_params(nbins=4)
+ax3.set_xlabel('Inheritance\n(Atoms 36Cl/g) x 10^6')
+ax4.plot(np.sort(EroR),scipy.stats.gaussian_kde(np.sort(EroR))(np.sort(EroR)))
+#ax4.tick_params(axis='y', pad=20)
+ax4.locator_params(nbins=4)
 ax4.set_xlabel('Erosion Rate (cm/kyr)')
+plot.setp(ax1.get_xticklabels(), rotation=30, horizontalalignment='right')
+plot.setp(ax2.get_xticklabels(), rotation=30, horizontalalignment='right')
+plot.setp(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
+plot.setp(ax4.get_xticklabels(), rotation=30, horizontalalignment='right')
+plot.tight_layout()
 plot.savefig('f3.pdf')
+plot.close('all')
+
+# Create figure 4
+#
+plot.title('Crossplots Colored by Density')
+f, ((ax1, ax2, ax3), (ax4, ax5, ax6)) = plot.subplots(2, 3)
+
+# Create subplot 1
+# Calculate point density
+density_i, density = DenSurf (RdR,TexR/1000,)
+# Plot and label interpolated density surface
+ax1.imshow(density_i, vmin=density.min(),vmax=density.max())
+ax1.set_xlabel('Exposure Age (ka)')
+ax1.set_ylabel('Rock Density (g/cm^3)')
+
+# Create subplot 2
+# Calculate point density
+density_i, density = DenSurf (TexR/1000,EroR*1000)
+# Plot and label interpolated density surface
+ax2.imshow(density_i, vmin=density.min(),vmax=density.max())
+ax2.set_xlabel('Exposure Age (ka)')
+ax2.set_ylabel('Erosion Rate (cm/kyr)')
+
+# Create subplot 3
+# Calculate point density
+density_i, density = DenSurf (TexR/1000,InhR/(10^6))
+# Plot and label interpolated density surface
+ax2.imshow(density_i, vmin=density.min(),vmax=density.max())
+ax2.set_xlabel('Exposure Age (ka)')
+ax2.set_ylabel('Inheritance (Atoms 36Cl/g x 10^6)')
+
+# Create subplot 4
+# Calculate point density
+density_i, density = DenSurf (RdR,EroR*1000)
+# Plot and label interpolated density surface
+ax2.imshow(density_i, vmin=density.min(),vmax=density.max())
+ax2.set_xlabel('Rock Density (g/cm^3)')
+ax2.set_ylabel('Erosion Rate (cm/kyr)')
+
+# Create subplot 5
+# Calculate point density
+density_i, density = DenSurf (RdR,InhR/(10^6))
+# Plot and label interpolated density surface
+ax2.imshow(density_i, vmin=density.min(),vmax=density.max())
+ax2.set_xlabel('Rock Density (g/cm^3)')
+ax2.set_ylabel('Inheritance (Atoms 36Cl/g) x 10^6')
+
+# Create subplot 6
+# Calculate point density
+density_i, density = DenSurf (EroR*1000,InhR/(10^6))
+# Plot and label interpolated density surface
+ax2.imshow(density_i, vmin=density.min(),vmax=density.max())
+ax2.set_xlabel('Erosion Rate (cm/kyr)')
+ax2.set_ylabel('Inheritance (Atoms 36Cl/g) x 10^6')
+
+plot.setp(ax1.get_xticklabels(), rotation=30, horizontalalignment='right')
+plot.setp(ax2.get_xticklabels(), rotation=30, horizontalalignment='right')
+plot.setp(ax3.get_xticklabels(), rotation=30, horizontalalignment='right')
+plot.setp(ax4.get_xticklabels(), rotation=30, horizontalalignment='right')
+plot.setp(ax5.get_xticklabels(), rotation=30, horizontalalignment='right')
+plot.setp(ax6.get_xticklabels(), rotation=30, horizontalalignment='right')
+plot.tight_layout()
+plot.savefig('f4.pdf')
 plot.close('all')
