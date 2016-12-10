@@ -25,6 +25,7 @@ def DenSurf(x,y):
                 (x_i, y_i), method='cubic', fill_value=0)
     return density_i, density
     
+
 # Create plot
 plot.xlim(TexR.min(),TexR.max())
 plot.ylim(EroR.min(),EroR.max())
@@ -41,3 +42,4 @@ plot.plot(np.median(TexR),np.median(EroR), 'co')
 plot.locator_params(nbins=5)
 plot.xlabel('Exposure Age (ka)')
 plot.ylabel('Erosion Rate (cm/kyr)')
+f.legend((BF, Mean, Med), ("Best Fit", "Mean", "Median"), 'center right')
