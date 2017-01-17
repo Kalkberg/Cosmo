@@ -34,13 +34,12 @@ import numpy as np
 import matplotlib.pyplot as plot
 from matplotlib.lines import Line2D
 import os
-import glob
-import shutil
 import sys
 import scipy
 from argparse import Namespace
 import subprocess
 import csv
+from PyPDF2 import PdfFileMerger
 
 # Translate inputs to variables
 Data_File = sys.argv[1]+'.txt'
@@ -193,6 +192,13 @@ RdRPThin=np.transpose(np.squeeze(RdR[RandInd]))
 EroRPThin=np.transpose(np.squeeze(EroR[RandInd]))
 LikRPThin=np.transpose(np.squeeze(LikR[RandInd]))
 
+# Resort thinned values by likelihood so they plot on top
+LikSort=LikRPThin.argsort() #
+LikRPThin=LikRPThin[LikSort[::1]]
+InhRPThin=InhRPThin[LikSort[::1]]
+RdRPThin=RdRPThin[LikSort[::1]]
+EroRPThin=EroRPThin[LikSort[::1]]
+
 # Find parameters of best fit (max likelihood) model
 BestTex=np.amax(TexR(np.argmax(LikR))) # Use max of vector in case of repeats
 BestInh=np.amax(InhR(np.argmax(LikR)))
@@ -223,13 +229,13 @@ LikNormMid=(LikNormMax+LikNormMin)/2
 print("Writing model output to csv files...")
 
 # Save retained models to a csv
-with open(Out_File+'Retained_Models.csv', 'w') as RMcsvfile:
+with open(Out_File+'_Retained_Models.csv', 'w') as RMcsvfile:
     retainedmodels = csv.writer(RMcsvfile)
     for row in RMThin:
         retainedmodels.writerow(row)
         
 # Savetested models to a csv
-with open(Out_File+'Tested_Models.csv', 'w') as TMcsvfile:
+with open(Out_File+'_Tested_Models.csv', 'w') as TMcsvfile:
     testedmodels = csv.writer(TMcsvfile)
     for row in M:
         testedmodels.writerow(row)
@@ -311,7 +317,7 @@ for i in range(0,len(TexRPThin)):
                                 (LikNormMax - LikNormMid))))/255, # R
                  (255 - (205 * (1 - (LikNormMax - LikNormPThin[i])/
                                 (LikNormMax - LikNormMid))))/255, # G
-                1] #B
+                0] #B
     plot.plot(NtotPlot/(10^6),dp, color=color,linewidth=0.5)
 
 plot.plot(NtotM/(10^6), dp, color='g', linewidth=1.5, label='Mean') # Mean model as green line
@@ -352,7 +358,7 @@ plot.title('Depth Profile Colored by Density')
 plot.savefig('f2.pdf')
 plot.close('all')
 
-# Make plot 2
+# Make figure 3
 f, ((ax1, ax2), (ax3, ax4)) = plot.subplots(2,2)
 ax1.plot(np.sort(TexR),scipy.stats.gaussian_kde(np.sort(TexR))(np.sort(TexR)))
 ax1.locator_params(nbins=3)
@@ -484,6 +490,7 @@ ax6.set_xlabel('Erosion Rate (cm/kyr)', fontsize=8)
 ax6.set_ylabel('Inheritance\n(Atoms 36Cl/g x 10^6)', fontsize=8)
 plot.tight_layout()
 
+# Build legend and save
 BF = Line2D([0],[0], linestyle='none', marker=(5,1), markerfacecolor='red')
 Mean = Line2D([0],[0], linestyle='none', marker='d', markerfacecolor='green') 
 Med = Line2D([0],[0], linestyle='none', marker='o', markerfacecolor='cyan')
@@ -493,3 +500,197 @@ f.suptitle('Crossplots Colored by Density', x=.3, y=.98, fontsize=14)
 f.subplots_adjust(top=.92)
 plot.savefig('f4.pdf')
 plot.close('all')
+
+# Create figure 5
+#
+f, ax1 = plot.subplots()
+density_i, density = DenSurf (TexR,InhR) # Calculate point density
+# Plot and label interpolated density surface
+ax1.imshow(density_i, vmin=density.min(),vmax=density.max(), \
+           extent=[TexR.min(),TexR.max(),InhR.max(),InhR.min()], aspect='auto')
+# Plot best fit, mean and median models
+ax1.plot(BestTex,BestInh, 'r', marker=(5,1)) 
+ax1.plot(TexM,InhM, 'gd') 
+ax1.plot(TexMed,InhMed, 'co')
+# Set Axes
+ax1.set_xlim(TexR.min(),TexR.max())
+ax1.set_ylim(InhR.min(),InhR.max())
+ax1.tick_params(axis='both', which='major', labelsize=8)
+ax1.set_xlabel('Exposure Age (ka)', fontsize=8)
+ax1.set_ylabel('Erosion Rate (cm/kyr)', fontsize=8)
+BF = Line2D([0],[0], linestyle='none', marker=(5,1), markerfacecolor='red')
+Mean = Line2D([0],[0], linestyle='none', marker='d', markerfacecolor='green') 
+Med = Line2D([0],[0], linestyle='none', marker='o', markerfacecolor='cyan')
+f.legend((BF, Mean, Med), ("Best Fit", "Mean", "Median"), 'lower left', 
+         numpoints=1, fontsize=6, ncol=1)
+f.suptitle('Erosion vs Age Crossplot Colored by Density', fontsize=14)
+f.subplots_adjust(top=.92)
+plot.savefig('f5.pdf')
+plot.close('all')
+
+# Create figure 6
+#
+plot.title('Crossplots Colored by Likelihood')
+f, ((ax1, ax2, ax3), (ax4, ax5, ax6)) = plot.subplots(2, 3, subplot_kw=dict(adjustable='datalim'))
+
+for i in range(0,len(TexRPThin)):
+    if LikNormPThin[i] <= LikNormMid: # Set color to plot based on likelihood
+        color = [1, 1 , (200 * ((LikNormMid - LikNormPThin[i])/
+                                (LikNormMid - LikNormMin)))/255]
+        size=.5
+    elif LikNormPThin[i] > LikNormMid:
+        color = [(255 - (205 * (1 - (LikNormMax - LikNormPThin[i])/
+                                (LikNormMax - LikNormMid))))/255, # R
+                 (255 - (205 * (1 - (LikNormMax - LikNormPThin[i])/
+                                (LikNormMax - LikNormMid))))/255, # G
+                0] #B
+        size=1
+    ax1.plot(TexRPThin[i], RdRPThin[i], 'o', markerfacecolor=color, 
+             markeredgecolor='none', markersize=size)
+    ax2.plot(TexRPThin[i], EroRPThin[i], 'o', markerfacecolor=color, 
+             markeredgecolor='none', markersize=size)
+    ax3.plot(TexRPThin[i], InhRPThin[i], 'o', markerfacecolor=color, 
+             markeredgecolor='none', markersize=size)
+    ax4.plot(RdRPThin[i], EroRPThin[i], 'o', markerfacecolor=color, 
+             markeredgecolor='none', markersize=size)
+    ax5.plot(RdRPThin[i], InhRPThin[i], 'o', markerfacecolor=color, 
+             markeredgecolor='none', markersize=size)
+    ax6.plot(EroRPThin[i], InhRPThin[i], 'o', markerfacecolor=color, 
+             markeredgecolor='none', markersize=size)
+
+# Set Axes
+ax1.set_xlim(TexR.min(),TexR.max())
+ax1.set_ylim(RdR.min(),RdR.max())
+ax1.locator_params(nbins=5)
+ax1.tick_params(axis='both', which='major', labelsize=8)
+ax1.set_xlabel('Exposure Age (ka)', fontsize=8)
+ax1.set_ylabel('Rock Density (g/cm^3)', fontsize=8)
+ax2.set_xlim(TexR.min(),TexR.max())
+ax2.set_ylim(EroR.min(),EroR.max())
+ax2.locator_params(nbins=5)
+ax2.tick_params(axis='both', which='major', labelsize=8)
+ax2.set_xlabel('Exposure Age (ka)', fontsize=8)
+ax2.set_ylabel('Erosion Rate (cm/kyr)', fontsize=8)
+ax3.set_xlim(TexR.min(),TexR.max())
+ax3.set_ylim(InhR.min(),InhR.max())
+ax3.locator_params(nbins=5)
+ax3.tick_params(axis='both', which='major', labelsize=8)
+ax3.set_xlabel('Exposure Age (ka)', fontsize=8)
+ax3.set_ylabel('Inheritance\n(Atoms 36Cl/g x 10^6)', fontsize=8)
+ax4.set_xlim(RdR.min(),RdR.max())
+ax4.set_ylim(EroR.min(),EroR.max())
+ax4.locator_params(nbins=5)
+ax4.tick_params(axis='both', which='major', labelsize=8)
+ax4.set_xlabel('Rock Density (g/cm^3)', fontsize=8)
+ax4.set_ylabel('Erosion Rate (cm/kyr)', fontsize=8)
+ax5.set_xlim(RdR.min(),RdR.max())
+ax5.set_ylim(InhR.min(),InhR.max())
+ax5.locator_params(nbins=5)
+ax5.tick_params(axis='both', which='major', labelsize=8)
+ax5.set_xlabel('Rock Density (g/cm^3)', fontsize=8)
+ax5.set_ylabel('Inheritance\n(Atoms 36Cl/g x 10^6)', fontsize=8)
+ax6.set_xlim(EroR.min(),EroR.max())
+ax6.set_ylim(InhR.min(),InhR.max())
+ax6.locator_params(nbins=5)
+ax6.tick_params(axis='both', which='major', labelsize=8)
+ax6.set_xlabel('Erosion Rate (cm/kyr)', fontsize=8)
+ax6.set_ylabel('Inheritance\n(Atoms 36Cl/g x 10^6)', fontsize=8)
+
+# Plot best fit, mean and median models
+ax1.plot(BestTex,BestRd, 'r', marker=(5,1)) #Plot best fit value as a red star
+ax1.plot(TexM,RdM, 'gd') #Plot mean as black square
+ax1.plot(TexMed,RdMed, 'co') #Plot median as cyan circle
+ax2.plot(BestTex,BestEro, 'r', marker=(5,1)) 
+ax2.plot(TexM,EroM, 'gd') 
+ax2.plot(TexMed,EroMed, 'co')
+ax3.plot(BestTex,BestInh, 'r', marker=(5,1)) 
+ax3.plot(TexM,InhM, 'gd') 
+ax3.plot(TexMed,InhMed, 'co')
+ax4.plot(BestRd,BestEro, 'r', marker=(5,1)) 
+ax4.plot(RdM,EroM, 'gd') 
+ax4.plot(RdMed,EroMed, 'co')
+ax5.plot(BestRd,BestInh, 'r', marker=(5,1)) 
+ax5.plot(RdM,InhM, 'gd') 
+ax5.plot(RdMed,InhMed, 'co')
+ax6.plot(BestEro,BestInh, 'r', marker=(5,1)) 
+ax6.plot(EroM,InhM, 'gd') 
+ax6.plot(EroMed,InhMed, 'co')
+
+# Create legend and print
+plot.tight_layout()
+BF = Line2D([0],[0], linestyle='none', marker=(5,1), markerfacecolor='red')
+Mean = Line2D([0],[0], linestyle='none', marker='d', markerfacecolor='green') 
+Med = Line2D([0],[0], linestyle='none', marker='o', markerfacecolor='cyan')
+f.legend((BF, Mean, Med), ("Best Fit", "Mean", "Median"), 'upper right', 
+         numpoints=1, fontsize=6, ncol=3)
+f.suptitle('Crossplots Colored by Density', x=.3, y=.98, fontsize=14)
+f.subplots_adjust(top=.92)
+plot.savefig('f6.pdf')
+plot.close('all')
+
+# Create Figure 7
+#
+f, ax1 = plot.subplots()
+
+for i in range(0,len(TexRPThin)):
+    if LikNormPThin[i] <= LikNormMid: # Set color to plot based on likelihood
+        color = [1, 1 , (200 * ((LikNormMid - LikNormPThin[i])/
+                                (LikNormMid - LikNormMin)))/255]
+        size=.5
+    elif LikNormPThin[i] > LikNormMid:
+        color = [(255 - (205 * (1 - (LikNormMax - LikNormPThin[i])/
+                                (LikNormMax - LikNormMid))))/255, # R
+                 (255 - (205 * (1 - (LikNormMax - LikNormPThin[i])/
+                                (LikNormMax - LikNormMid))))/255, # G
+                0] #B
+        size=1
+    ax1.plot(TexRPThin[i], RdRPThin[i], 'o', markerfacecolor=color, 
+             markeredgecolor='none', markersize=size)
+
+# Plot best fit, mean and median models
+ax1.plot(BestTex,BestInh, 'r', marker=(5,1)) 
+ax1.plot(TexM,InhM, 'gd') 
+ax1.plot(TexMed,InhMed, 'co')
+# Set Axes
+ax1.set_xlim(TexR.min(),TexR.max())
+ax1.set_ylim(InhR.min(),InhR.max())
+ax1.tick_params(axis='both', which='major', labelsize=8)
+ax1.set_xlabel('Exposure Age (ka)', fontsize=8)
+ax1.set_ylabel('Erosion Rate (cm/kyr)', fontsize=8)
+BF = Line2D([0],[0], linestyle='none', marker=(5,1), markerfacecolor='red')
+Mean = Line2D([0],[0], linestyle='none', marker='d', markerfacecolor='green') 
+Med = Line2D([0],[0], linestyle='none', marker='o', markerfacecolor='cyan')
+f.legend((BF, Mean, Med), ("Best Fit", "Mean", "Median"), 'lower left', 
+         numpoints=1, fontsize=6, ncol=1)
+f.suptitle('Erosion vs Age Crossplot Colored by Likelihood', fontsize=14)
+f.subplots_adjust(top=.92)
+plot.savefig('f7.pdf')
+plot.close('all')
+
+# Create Figure 8
+#
+
+f, ax = plot.subplots()
+ax.plot(M[3:Ran,5]*100)
+ax.set_xlabel('Trial Number')
+ax.set_ylabel('Retention Rate (%)')
+f.suptitle('Model Retention Rate', fontsize=14)
+plot.tight_layout()
+plot.savefig('f8.pdf')
+plot.close('all')
+
+# Combine PDFs and delete old ones
+pdfs = ['f1.pdf', 'f2.pdf', 'f3.pdf', '4.pdf', 'f5.pdf', 'f6.pdf', 'f7.pdf', 
+        'f8.pdf']
+merger = PdfFileMerger()
+for pdf in pdfs:
+    merger.append(pdf)
+merger.write(Out_File+'.pdf')
+os.remove('f1.pdf')
+os.remove('f2.pdf')
+os.remove('f3.pdf')
+os.remove('f4.pdf')
+os.remove('f5.pdf')
+os.remove('f6.pdf')
+os.remove('f7.pdf')
+os.remove('f8.pdf')
