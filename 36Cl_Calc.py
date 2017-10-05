@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Code to calculate theoretical 36Cl inventory using outputs of Schimmelpfenning 
-et al 2009 spreadsheet calculator.
+et al 2009 spreadsheet calculator. 
 Written by Petr Yakovlev, Montana Bureau of Mines and Geology
 @author Kalkberg
 
