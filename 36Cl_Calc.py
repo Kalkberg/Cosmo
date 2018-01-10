@@ -10,9 +10,9 @@ Required Packages:
 
 Usage:
     36Cl_Calc.py Data Priors Output PDFLatex_Path
-    Data - File name of txt file containing sample information with columns:
+    Data - File name of csv file containing sample information with columns:
         1-36Cl concentration, 2-Error on 36Cl, 3-Sampe depth in cm
-    Priors - File name of txt file containing model priors, run parameters, and
+    Priors - File name of csv file containing model priors, run parameters, and
         input information derived from outher sources.
     Output - Base file name of the output files desired by the user
     PDFLatex_Path - Path to pdflatex.exe from your LaTeX distribution
@@ -30,6 +30,7 @@ Note: 36_Calc.py must be located in the same directory as your input files!
         
 """
 # Import packages
+#from __future__ import division
 import numpy as np
 import matplotlib.pyplot as plot
 from matplotlib.lines import Line2D
@@ -42,37 +43,60 @@ import csv
 from PyPDF2 import PdfFileMerger
 
 # Translate inputs to variables
-Data_File = sys.argv[1]+'.txt'
-Prior_File = sys.argv[2]+'.txt'
-Out_File = sys.argv[3]
-PDFLatex = sys.argv[4]+'pdflatex.exe'   
+#Data_File = sys.argv[1]+'.txt'
+#Prior_File = sys.argv[2]+'.txt'
+#Out_File = sys.argv[3]
+#PDFLatex = sys.argv[4]+'pdflatex.exe'   
 
-# Check number of input arguments, if not four (Python 5), print error, usage
-# and terminate program
-if len(sys.argv)==5:
-    print("Data file set to %s" % Data_File)
-    print("Priors file set to %s" % Prior_File)
-    print("Output file set to %s" % Out_File)
-else:
-    print("Error: Wrong number of input arguments!")
-    print("Usage:36Cl_Calc.py Data Priors Output PDFLatex_Path")
-    print("Data - File name of txt file containing sample information")
-    print("Priors - File name of txt file containing model priors, run parameters, and input information derived from outher sources.")
-    print("Output - Base file name of the output files desired by the user")
-    print("PDFLatex_Path - Path to pdflatex.exe from your LaTeX distribution")
-    print("Ex: 36Cl_Calc.py Kumkuli Params Results C:/Program Files/LaTeX")
-    sys.exit()
+Data_File = 'West_Data.csv'
+Prior_File ='Priors.csv'
+Out_File = 'Results'
+PDFLatex = 'C:/Program Files/LaTeX/pdflatex.exe'   
+
+
+## Check number of input arguments, if not four (Python 5), print error, usage
+## and terminate program
+#if len(sys.argv)==5:
+#    print("Data file set to %s" % Data_File)
+#    print("Priors file set to %s" % Prior_File)
+#    print("Output file set to %s" % Out_File)
+#else:
+#    print("Error: Wrong number of input arguments!")
+#    print("Usage:36Cl_Calc.py Data Priors Output PDFLatex_Path")
+#    print("Data - File name of txt file containing sample information")
+#    print("Priors - File name of txt file containing model priors, run parameters, and input information derived from outher sources.")
+#    print("Output - Base file name of the output files desired by the user")
+#    print("PDFLatex_Path - Path to pdflatex.exe from your LaTeX distribution")
+#    print("Ex: 36Cl_Calc.py Kumkuli Params Results C:/Program Files/LaTeX")
+#    sys.exit()
     
-# Read input files to variables
-with open(Data_File,'r') as infile:
-    Cl, Clerr, depth = infile.read()
-    infile = None
-with open(Prior_File,'r') as infile:
-   (Run, Ret, Burn, Thin, TexStep, InhStep, RdStep, EroStep, MaxTexTest, 
-   MinTexTest, MaxInhTest, MinInhTest, MaxRdTest, MinRdTest, MaxEroTest, 
-   MinEroTest, MaxTotE, MinTotE, TexStart, RdStart, InhStart, EroStart, Sn, 
-   St, LCl, Nr, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm) = infile.read()
-   infile = None
+## Read input files to variables
+#with open(Data_File,'r') as infile:
+#    Cl, Clerr, depth = infile.read()
+#    infile = None
+#with open(Prior_File,'r') as infile:
+#   (Run, Ret, Burn, Thin, TexStep, InhStep, RdStep, EroStep, MaxTexTest, 
+#   MinTexTest, MaxInhTest, MinInhTest, MaxRdTest, MinRdTest, MaxEroTest, 
+#   MinEroTest, MaxTotE, MinTotE, TexStart, RdStart, InhStart, EroStart, Sn, 
+#   St, LCl, Nr, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm) = infile.read()
+#   infile = None
+
+# Read input files
+Cl = np.genfromtxt(Data_File,delimiter=',',usecols=0)
+Clerr = np.genfromtxt(Data_File,delimiter=',',usecols=1)
+depth = np.genfromtxt(Data_File,delimiter=',',usecols=2)
+(Run, Ret, Burn, Thin, TexStep, InhStep, RdStep, EroStep, 
+    MaxTexTest, MinTexTest, MaxInhTest, MinInhTest, MaxRdTest, MinRdTest, 
+    MaxEroTest, MinEroTest, MaxTotE, MinTotE, 
+    TexStart, RdStart, InhStart, EroStart, 
+    Sn, St, LCl, Nr, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm
+    ) = np.genfromtxt(Prior_File,delimiter=',').tolist()
+
+# Make sure ints are ints
+Run = int(Run)
+Ret = int(Ret)
+Burn = int(Burn)
+Thin = int(Thin)
 
 # Pre-allocate matrices
 M = np.zeros((Run,6))
@@ -83,16 +107,16 @@ s = 1 # Retained models
 Ran = 1 # Tested models
 q = 0 # Models plotted
 
-PlotPoints=2000 # Set number of points to plot on scatterplots
+PlotPoints=10 # Set number of points to plot on scatterplots
 
 # Create vector for plotting depth profiles
 dp = np.matrix(np.linspace(0,np.max(depth)*1.2,num=201))
 
 # Create vector of steps to take
-Steps=np.matrix('%s %s %s %s' %(TexStep, InhStep, RdStep, EroStep))
+Steps=np.array([TexStep, InhStep, RdStep, EroStep])
 
 # Set value of first model
-M[0][0:3] = (TexStart,InhStart,RdStart,EroStart)
+M[0][0:4] = [TexStart,InhStart,RdStart,EroStart]
 
 # Define function to estimate total 36Cl at range of depths defined by vector depth
 def ClTot(Tex, Inh, Rd, Ero, LCl, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm, Nr, 
@@ -130,11 +154,14 @@ def DenSurf(x,y):
 # Calculate likelihood of first model and store to model matrix
 Ntot=ClTot(M[0,0], M[0,1], M[0,2], M[0,3], LCl, Af, Leth, Lth, Am, Js, Jeth, 
            Jth, Jm, Nr, depth)
-L2=np.sum(np.square(Ntot-Cl/Clerr))
+L2=np.sum(np.square(Ntot-Cl)/np.square(Clerr))
 M[0,4]=np.exp(-.5*L2)
 
 print("Running Model...")
 
+test=[]
+tested = np.empty([1,4])
+LRatRet = []
 # Run model
 #
 for j in range(1,Run):
@@ -144,29 +171,40 @@ for j in range(1,Run):
     # Keep track of how many models were tested
     Ran=Ran+1
     # Select next model to test
-    trial=M[j][0:3]+np.matrix(np.random.normal(0,1,[1,4]))*Steps
+    trial=M[j-1][0:4]+np.squeeze(np.random.normal(0,1,[1,4])*Steps)
     # Calculate total 36Cl for new parameters
     Ntot=ClTot(trial[0], trial[1], trial[2], trial[3], LCl, Af, Leth, Lth, Am, 
                Js, Jeth, Jth, Jm, Nr, depth)
     # Calculate L2 norm and likelihood
-    L2=np.sum(np.square(Ntot-Cl/Clerr))
+    L2=np.sum(np.square(Ntot-Cl)/np.square(Clerr))
     M[j,4]=np.exp(-.5*L2)
     # Calculate ratio of likelihoods between current and previous model
-    LRat=M[j,5]/M[j-1,5]
+    a=float(M[j,4])
+    b=float(M[j-1,4])
+    LRat=a/b
+    
+    test.append((LRat > np.random.uniform(0,1) and 
+        trial[0] >= MinTexTest and trial[0] <= MaxTexTest and
+        trial[1] >= MinInhTest and trial[1] <= MaxInhTest and
+        trial[2] >= MinRdTest and trial[2] <= MaxRdTest and
+        trial[3] >= MinEroTest and trial[3] <= MaxEroTest and
+        trial[0]*trial[3] >= MinTotE and trial[0]*trial[3] <= MaxTotE))
+    tested = np.append(tested, np.expand_dims(trial,0), axis=0)
+    LRatRet.append(LRat)
     # Retain models if likelihood ratio is greater than a random number, and 
     # parameters are within limits set by run parameters
     if (LRat > np.random.uniform(0,1) and 
-        trial[0] >= MinTexTest and trial[1] <= MaxTexTest and
-        trial[2] >= MinInhTest and trial[3] <= MaxInhTest and
-        trial[4] >= MinRdTest and trial[5] <= MaxRdTest and
-        trial[6] >= MinEroTest and trial[7] <= MaxEroTest and
+        trial[0] >= MinTexTest and trial[0] <= MaxTexTest and
+        trial[1] >= MinInhTest and trial[1] <= MaxInhTest and
+        trial[2] >= MinRdTest and trial[2] <= MaxRdTest and
+        trial[3] >= MinEroTest and trial[3] <= MaxEroTest and
         trial[0]*trial[3] >= MinTotE and trial[0]*trial[3] <= MaxTotE):
-            s=s+1 # Add value to counter of retained models
-            M[j][0:3]=trial # Add parameters to list of tested models 
-            RM[s][0:3]=trial # Add parameters to list of retained models
+            s+=1 # Add value to counter of retained models
+            M[j][0:4]=trial # Add parameters to list of tested models 
+            RM[s][0:4]=trial # Add parameters to list of retained models
             RM[s,4]=M[j,4] # Add likelihood to retained model
     else:
-        M[j][0:3]=M[j-1][0:3] # Set coordinates of tested model to prev. value
+        M[j][0:4]=M[j-1][0:4] # Set coordinates of tested model to prev. value
         M[j,4]=M[j-1,4] # Update likelihood of current model to previous value
     M[j,5]=s/Ran # Record acceptance rate at this step
 

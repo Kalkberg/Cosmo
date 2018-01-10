@@ -19,7 +19,9 @@ $RECYCLE.BIN/
 
 # Working files
 *.pdf
-*.csv
+#*.csv
+*.xlsx
+*.txt
 
 # =========================
 # Operating System Files
