@@ -107,7 +107,7 @@ s = 1 # Retained models
 Ran = 1 # Tested models
 q = 0 # Models plotted
 
-PlotPoints=10 # Set number of points to plot on scatterplots
+PlotPoints=200 # Set number of points to plot on scatterplots
 
 # Create vector for plotting depth profiles
 dp = np.matrix(np.linspace(0,np.max(depth)*1.2,num=201))
