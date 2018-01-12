@@ -164,9 +164,9 @@ M[0,4]=np.exp(-.5*L2)
 #%%
 print("Running Model...")
 
-test=[]
-tested = np.empty([1,4])
-LRatRet = []
+#test=[]
+#tested = np.empty([1,4])
+#LRatRet = []
 bar = progressbar.ProgressBar(max_value=Ret*Thin+Burn)
 
 
@@ -189,18 +189,16 @@ for j in range(1,Run):
     #M[j,4] = L2
     M[j,4]=np.exp(-.5*L2)
     # Calculate ratio of likelihoods between current and previous model
-    a=float(M[j,4])
-    b=float(M[j-1,4])
-    LRat=a/b
-    
-    test.append((LRat > np.random.uniform(0,2) and 
-        trial[0] >= MinTexTest and trial[0] <= MaxTexTest and
-        trial[1] >= MinInhTest and trial[1] <= MaxInhTest and
-        trial[2] >= MinRdTest and trial[2] <= MaxRdTest and
-        trial[3] >= MinEroTest and trial[3] <= MaxEroTest and
-        trial[0]*trial[3] >= MinTotE and trial[0]*trial[3] <= MaxTotE))
-    tested = np.append(tested, np.expand_dims(trial,0), axis=0)
-    LRatRet.append(LRat)
+    LRat=float(M[j,4])/float(M[j-1,4])
+
+#    test.append((LRat > np.random.uniform(0,2) and 
+#        trial[0] >= MinTexTest and trial[0] <= MaxTexTest and
+#        trial[1] >= MinInhTest and trial[1] <= MaxInhTest and
+#        trial[2] >= MinRdTest and trial[2] <= MaxRdTest and
+#        trial[3] >= MinEroTest and trial[3] <= MaxEroTest and
+#        trial[0]*trial[3] >= MinTotE and trial[0]*trial[3] <= MaxTotE))
+#    tested = np.append(tested, np.expand_dims(trial,0), axis=0)
+#    LRatRet.append(LRat)
     # Retain models if likelihood ratio is greater than a random number, and 
     # parameters are within limits set by run parameters
     if (LRat > np.random.uniform(0,1) and 
