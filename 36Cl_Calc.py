@@ -102,8 +102,8 @@ Burn = int(Burn)
 Thin = int(Thin)
 
 # Pre-allocate matrices
-M = np.array([[],[],[],[],[],[]])
-RM = np.array([[],[],[],[],[]])  
+M = np.zeros((Run,6))
+RM = np.zeros((Ret+Burn+1,6))    
 
 # Set counters
 s = 0 # Retained models
@@ -117,6 +117,9 @@ dp = np.linspace(0,np.max(depth)*1.2,num=201)
 
 # Create vector of steps to take
 Steps=np.array([TexStep, InhStep, RdStep, EroStep])
+
+# Set value of first model
+M[0][0:4] = [TexStart,InhStart,RdStart,EroStart]
 
 # Define function to estimate total 36Cl at range of depths defined by vector depth
 def ClTot(Tex, Inh, Rd, Ero, LCl, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm, Nr, 
@@ -152,11 +155,11 @@ def DenSurf(x,y):
     return density_i, density
 
 # Calculate likelihood of first model and store to model matrix
-Ntot=ClTot(TexStart, InhStart, RdStart, EroStart, LCl, Af, Leth, Lth, Am, Js, Jeth, 
+Ntot=ClTot(M[0,0], M[0,1], M[0,2], M[0,3], LCl, Af, Leth, Lth, Am, Js, Jeth, 
            Jth, Jm, Nr, depth)
 L2=np.sum(np.square(Ntot-Cl)/np.square(Clerr))
-Lik=np.exp(-.5*L2)
-M=np.append(M,[[TexStart], [InhStart], [RdStart], [EroStart],[Lik],[np.nan]],axis=1)
+#M[0,4] = L2
+M[0,4]=np.exp(-.5*L2)
 
 #%%
 print("Running Model...")
@@ -169,7 +172,7 @@ bar = progressbar.ProgressBar(max_value=Ret*Thin+Burn)
 
 # Run model
 #
-for j in range(Run):
+for j in range(1,Run):
     # If the number of retained models meets the required value, end the loop
     if s==(Ret*Thin+Burn):
         break
@@ -177,15 +180,18 @@ for j in range(Run):
     # Keep track of how many models were tested
     Ran=Ran+1
     # Select next model to test
-    trial=M[0:4,j-1]+np.squeeze(np.random.normal(0,1,[1,4])*Steps)
+    trial=M[j-1][0:4]+np.squeeze(np.random.normal(0,1,[1,4])*Steps)
     # Calculate total 36Cl for new parameters
     Ntot=ClTot(trial[0], trial[1], trial[2], trial[3], LCl, Af, Leth, Lth, Am, 
                Js, Jeth, Jth, Jm, Nr, depth)
     # Calculate L2 norm and likelihood
     L2=np.sum(np.square((Ntot-Cl)/Clerr))
-    Lik=np.exp(-.5*L2)
+    #M[j,4] = L2
+    M[j,4]=np.exp(-.5*L2)
     # Calculate ratio of likelihoods between current and previous model
-    LRat=Lik/M[4,j-1]
+    a=float(M[j,4])
+    b=float(M[j-1,4])
+    LRat=a/b
 
 #    test.append((LRat > np.random.uniform(0,2) and 
 #        trial[0] >= MinTexTest and trial[0] <= MaxTexTest and
@@ -204,28 +210,27 @@ for j in range(Run):
         trial[3] >= MinEroTest and trial[3] <= MaxEroTest and
         trial[0]*trial[3] >= MinTotE and trial[0]*trial[3] <= MaxTotE):
             s+=1 # Add value to counter of retained models
-            accept = float(s)/Ran # Acceptance rate
-            M=np.append(M,[[trial[0]], [trial[1]], [trial[2]], [trial[3]],
-                           [Lik],[accept]],axis=1)
-            RM=np.append(RM,[[trial[0]], [trial[1]], [trial[2]], [trial[3]],
-                           [Lik]],axis=1)
+            M[j][0:4]=trial # Add parameters to list of tested models 
+            RM[s][0:4]=trial # Add parameters to list of retained models
+            RM[s,4]=M[j,4] # Add likelihood to retained model
     else:
-       # Set values of tested model to prev. value
-       M=np.append(M,[[M[0,j-1]], [M[1,j-1]], [M[2,j-1]], [M[3,j-1]],
-                           [M[4,j-1]],[np.nan]],axis=1)
+        M[j][0:4]=M[j-1][0:4] # Set coordinates of tested model to prev. value
+        M[j,4]=M[j-1,4] # Update likelihood of current model to previous value
+    M[j,5]=float(s)/Ran # Record acceptance rate at this step
+
 #%%
 print("Generating statistics...")   
  
-RM=RM[:,Burn::] # Delete models from burn-in period
-RMThin=RM[:,1::Thin] # Thin retained models for statistical analysis
-RMThin=RMThin[np.argsort(-RMThin[4,:],0)] # Sort retained models by likelihood
+RM=RM[Burn::,:] # Delete models from burn-in period
+RMThin=RM[1::Thin,:] # Thin retained models for statistical analysis
+RMThin=RMThin[np.argsort(-RMThin[:,4],0)] # Sort retained models by likelihood
 
 # Split retained models into parameter vectors for easier interpretation
-TexR=RMThin[0,:]/1000    # Exposure Time (yr) now in kyr
-InhR=RMThin[1,:]/(10**6)    # Inheritance (atoms 36Cl) now in atoms x 10^6
-RdR=RMThin[2,:]     # Rock Density (g/cm^3)
-EroR=RMThin[3,:]*1000    # Erosion Rate (cm/yr) now in cm/kyr
-LikR=RMThin[4,:]    # Model likelihood
+TexR=RMThin[:,0]/1000    # Exposure Time (yr) now in kyr
+InhR=RMThin[:,1]/(10**6)    # Inheritance (atoms 36Cl) now in atoms x 10^6
+RdR=RMThin[:,2]     # Rock Density (g/cm^3)
+EroR=RMThin[:,3]*1000    # Erosion Rate (cm/yr) now in cm/kyr
+LikR=RMThin[:,4]    # Model likelihood
 
 #%%
 # Thin out model results for scatter plots
