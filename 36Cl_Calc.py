@@ -110,7 +110,7 @@ s = 0 # Retained models
 Ran = 0 # Tested models
 q = 0 # Models plotted
 
-PlotPoints=400 # Set number of points to plot on scatterplots
+PlotPoints=3000 # Set number of points to plot on scatterplots
 
 # Create vector for plotting depth profiles
 dp = np.linspace(0,np.max(depth)*1.2,num=201)
@@ -158,8 +158,8 @@ def DenSurf(x,y):
 Ntot=ClTot(M[0,0], M[0,1], M[0,2], M[0,3], LCl, Af, Leth, Lth, Am, Js, Jeth, 
            Jth, Jm, Nr, depth)
 L2=np.sum(np.square(Ntot-Cl)/np.square(Clerr))
-M[0,4] = L2
-#M[0,4]=np.exp(-.5*L2)
+#M[0,4] = L2
+M[0,4]=np.exp(-.5*L2)
 
 #%%
 print("Running Model...")
@@ -185,9 +185,9 @@ for j in range(1,Run):
     Ntot=ClTot(trial[0], trial[1], trial[2], trial[3], LCl, Af, Leth, Lth, Am, 
                Js, Jeth, Jth, Jm, Nr, depth)
     # Calculate L2 norm and likelihood
-    L2=np.sum(np.square(Ntot-Cl)/np.square(Clerr))
-    M[j,4] = L2
-    #M[j,4]=np.exp(-.5*L2)
+    L2=np.sum(np.square((Ntot-Cl)/Clerr))
+    #M[j,4] = L2
+    M[j,4]=np.exp(-.5*L2)
     # Calculate ratio of likelihoods between current and previous model
     a=float(M[j,4])
     b=float(M[j-1,4])
@@ -227,7 +227,7 @@ RMThin=RMThin[np.argsort(-RMThin[:,4],0)] # Sort retained models by likelihood
 
 # Split retained models into parameter vectors for easier interpretation
 TexR=RMThin[:,0]/1000    # Exposure Time (yr) now in kyr
-InhR=RMThin[:,1]/(10^6)    # Inheritance (atoms 36Cl) now in atoms x 10^6
+InhR=RMThin[:,1]/(10**6)    # Inheritance (atoms 36Cl) now in atoms x 10^6
 RdR=RMThin[:,2]     # Rock Density (g/cm^3)
 EroR=RMThin[:,3]*1000    # Erosion Rate (cm/yr) now in cm/kyr
 LikR=RMThin[:,4]    # Model likelihood
@@ -368,12 +368,12 @@ for i in range(len(TexRPThin)):
                  (255 - (205 * (1 - (LikNormMax - LikNormPThin[i])/
                                 (LikNormMax - LikNormMid))))/255, # G
                 0] #B
-    plot.plot(NtotPlot/(10^6),dp, color=color,linewidth=0.5)
+    plot.plot(NtotPlot/(10**6),dp, color=color,linewidth=0.5)
 
-plot.plot(NtotM/(10^6), dp, color='g', linewidth=1.5, label='Mean') # Mean model as green line
-plot.plot(NtotMed/(10^6), dp, color='c', linewidth=1.5, label='Median') # Median model as cyan line
-plot.plot(NtotBest/(10^6), dp, color='r', linewidth=1.5, label='Best Fit') # Best fit model as red line
-plot.errorbar(Cl/(10^6), depth, xerr=Clerr, fmt='bs', markerfacecolor='none', label='data') # Data
+plot.plot(NtotM/(10**6), dp, color='g', linewidth=1.5, label='Mean') # Mean model as green line
+plot.plot(NtotMed/(10**6), dp, color='c', linewidth=1.5, label='Median') # Median model as cyan line
+plot.plot(NtotBest/(10**6), dp, color='r', linewidth=1.5, label='Best Fit') # Best fit model as red line
+plot.errorbar(Cl/(10**6), depth, xerr=Clerr, fmt='bs', markerfacecolor='none', label='data') # Data
 plot.legend(loc=4)
 
 # Add info and save
@@ -393,19 +393,21 @@ plot.close('all')
 ## Plot interpolated density surface
 #plot.imshow(density_i, vmin=density.min(),vmax=density.max())
 #plot.colorbar()
-
+fig2, ax2 = plot.subplots()
 # Create density plot, making sure origin is included
-sns.kdeplot(np.append(MCl[:,0],0),np.append(MCl[:,1],0),n_levels=60, 
-                      shade=True, cmap='cubehelix')
+sns.kdeplot(np.append(MCl[:,0]/(10**6),0),np.append(MCl[:,1],0),n_levels=60, 
+                      shade=True, cmap='cubehelix', ax=ax2)
 
 # Plot model results and data
-plot.plot(NtotM/(10^6), dp, 'r:', linewidth=1.5, label='Mean')
-plot.plot(NtotMed/(10^6), dp, 'r--', linewidth=1.5, label='Median')
-plot.plot(NtotBest/(10^6), dp, 'r', linewidth=1.5, label='Best Fit')
-plot.errorbar(Cl/(10^6), depth, xerr=Clerr, fmt='bs', markerfacecolor='white', label='data')
+plot.plot(NtotM/(10**6), dp, 'r:', linewidth=1.5, label='Mean')
+plot.plot(NtotMed/(10**6), dp, 'r--', linewidth=1.5, label='Median')
+plot.plot(NtotBest/(10**6), dp, 'r', linewidth=1.5, label='Best Fit')
+plot.errorbar(Cl/(10**6), depth, xerr=Clerr/(10**6), fmt='bs', markerfacecolor='white', label='data')
 plot.legend(loc=4)
 
 # Add info and save
+ax2.set_xlim(0,(np.max(Cl+Clerr)*1.5)/10**6)
+ax2.set_ylim(0,np.max(depth))
 plot.xlabel('Atoms 36Cl/g x 10^6')
 plot.ylabel('Depth (cm)')
 plot.gca().invert_yaxis()
@@ -686,16 +688,16 @@ for i in range(0,len(TexRPThin)):
                                 (LikNormMax - LikNormMid))))/255, # G
                 0] #B
         size=1
-    ax1.plot(TexRPThin[i], RdRPThin[i], 'o', markerfacecolor=color, 
+    ax1.plot(TexRPThin[i], EroRPThin[i], 'o', markerfacecolor=color, 
              markeredgecolor='none', markersize=size)
     
 # Plot best fit, mean and median models
-ax1.plot(BestTex,BestInh, 'r', marker=(5,1)) 
-ax1.plot(TexM,InhM, 'gd') 
-ax1.plot(TexMed,InhMed, 'bo')
+ax1.plot(BestTex,BestEro, 'r', marker=(5,1)) 
+ax1.plot(TexM,EroM, 'gd') 
+ax1.plot(TexMed,EroMed, 'bo')
 # Set Axes
 ax1.set_xlim(TexR.min(),TexR.max())
-ax1.set_ylim(InhR.min(),InhR.max())
+ax1.set_ylim(EroR.min(),EroR.max())
 ax1.tick_params(axis='both', which='major', labelsize=8)
 ax1.set_xlabel('Exposure Age (ka)', fontsize=8)
 ax1.set_ylabel('Erosion Rate (cm/kyr)', fontsize=8)
