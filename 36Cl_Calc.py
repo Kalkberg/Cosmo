@@ -189,7 +189,9 @@ for j in range(1,Run):
     #M[j,4] = L2
     M[j,4]=np.exp(-.5*L2)
     # Calculate ratio of likelihoods between current and previous model
-    LRat=float(M[j,4])/float(M[j-1,4])
+    a=float(M[j,4])
+    b=float(M[j-1,4])
+    LRat=a/b
 
 #    test.append((LRat > np.random.uniform(0,2) and 
 #        trial[0] >= MinTexTest and trial[0] <= MaxTexTest and
@@ -394,7 +396,7 @@ plot.close('all')
 fig2, ax2 = plot.subplots()
 # Create density plot, making sure origin is included
 sns.kdeplot(np.append(MCl[:,0]/(10**6),0),np.append(MCl[:,1],0),n_levels=60, 
-                      shade=True, cmap='cubehelix', ax=ax2)
+                      shade=True, cmap='viridis', ax=ax2)
 
 # Plot model results and data
 plot.plot(NtotM/(10**6), dp, 'r:', linewidth=1.5, label='Mean')
@@ -442,7 +444,7 @@ f, ((ax1, ax2, ax3), (ax4, ax5, ax6)) = plot.subplots(2, 3, subplot_kw=dict(adju
 ax1.set_xlim(TexR.min(),TexR.max())
 ax1.set_ylim(RdR.min(),RdR.max())
 # Calculate point density
-sns.kdeplot(TexR,RdR,n_levels=60, shade=True, cmap='cubehelix', ax=ax1)
+sns.kdeplot(TexR,RdR,n_levels=60, shade=True, cmap='viridis', ax=ax1)
 
 # Plot best fit, mean and median models
 ax1.plot(BestTex,BestRd, 'r', marker=(5,1)) #Plot best fit value as a red star
@@ -458,7 +460,7 @@ ax1.set_ylabel('Rock Density (g/cm^3)', fontsize=8)
 ax2.set_xlim(TexR.min(),TexR.max())
 ax2.set_ylim(EroR.min(),EroR.max())
 # Calculate point density
-sns.kdeplot(TexR,EroR,n_levels=60, shade=True, cmap='cubehelix', ax=ax2)
+sns.kdeplot(TexR,EroR,n_levels=60, shade=True, cmap='viridis', ax=ax2)
 
 # Plot best fit, mean and median models
 ax2.plot(BestTex,BestEro, 'r', marker=(5,1)) 
@@ -472,7 +474,7 @@ ax2.set_ylabel('Erosion Rate (cm/kyr)', fontsize=8)
 
 # Create subplot 3
 # Calculate point density
-sns.kdeplot(TexR,InhR,n_levels=60, shade=True, cmap='cubehelix', ax=ax3)
+sns.kdeplot(TexR,InhR,n_levels=60, shade=True, cmap='viridis', ax=ax3)
 # Plot best fit, mean and median models
 ax3.plot(BestTex,BestInh, 'r', marker=(5,1)) 
 ax3.plot(TexM,InhM, 'gd') 
@@ -487,7 +489,7 @@ ax3.set_ylabel('Inheritance\n(Atoms 36Cl/g x 10^6)', fontsize=8)
 
 # Create subplot 4
 # Calculate point density
-sns.kdeplot(RdR,EroR,n_levels=60, shade=True, cmap='cubehelix', ax=ax4)
+sns.kdeplot(RdR,EroR,n_levels=60, shade=True, cmap='viridis', ax=ax4)
 # Plot best fit, mean and median models
 ax4.plot(BestRd,BestEro, 'r', marker=(5,1)) 
 ax4.plot(RdM,EroM, 'gd') 
@@ -502,7 +504,7 @@ ax4.set_ylabel('Erosion Rate (cm/kyr)', fontsize=8)
 
 # Create subplot 5
 # Calculate point density
-sns.kdeplot(RdR,InhR,n_levels=60, shade=True, cmap='cubehelix', ax=ax5)
+sns.kdeplot(RdR,InhR,n_levels=60, shade=True, cmap='viridis', ax=ax5)
 # Plot best fit, mean and median models
 ax5.plot(BestRd,BestInh, 'r', marker=(5,1)) 
 ax5.plot(RdM,InhM, 'gd') 
@@ -517,7 +519,7 @@ ax5.set_ylabel('Inheritance\n(Atoms 36Cl/g x 10^6)', fontsize=8)
 
 # Create subplot 6
 # Calculate point density
-sns.kdeplot(EroR,InhR,n_levels=60, shade=True, cmap='cubehelix', ax=ax6)
+sns.kdeplot(EroR,InhR,n_levels=60, shade=True, cmap='viridis', ax=ax6)
 # Plot best fit, mean and median models
 ax6.plot(BestEro,BestInh, 'r', marker=(5,1)) 
 ax6.plot(EroM,InhM, 'gd') 
@@ -547,15 +549,15 @@ plot.close('all')
 #
 f, ax1 = plot.subplots()
 # Plot and label interpolated density surface
-sns.kdeplot(TexR,InhR,n_levels=60, shade=True, cmap='cubehelix', ax=ax1)
+sns.kdeplot(TexR,EroR,n_levels=60, shade=True, cmap='viridis', ax=ax1)
 
 # Plot best fit, mean and median models
-ax1.plot(BestTex,BestInh, 'r', marker=(5,1)) 
-ax1.plot(TexM,InhM, 'gd') 
-ax1.plot(TexMed,InhMed, 'bo')
+ax1.plot(BestTex,BestEro, 'r', marker=(5,1)) 
+ax1.plot(TexM,EroM, 'gd') 
+ax1.plot(TexMed,EroMed, 'bo')
 # Set Axes
 ax1.set_xlim(TexR.min(),TexR.max())
-ax1.set_ylim(InhR.min(),InhR.max())
+ax1.set_ylim(EroR.min(),EroR.max())
 ax1.tick_params(axis='both', which='major', labelsize=8)
 ax1.set_xlabel('Exposure Age (ka)', fontsize=8)
 ax1.set_ylabel('Erosion Rate (cm/kyr)', fontsize=8)
