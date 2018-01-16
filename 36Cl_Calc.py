@@ -160,6 +160,7 @@ Ntot=ClTot(M[0,0], M[0,1], M[0,2], M[0,3], LCl, Af, Leth, Lth, Am, Js, Jeth,
 L2=np.sum(np.square(Ntot-Cl)/np.square(Clerr))
 #M[0,4] = L2
 M[0,4]=np.exp(-.5*L2)
+M[0,5]=np.nan
 
 #%%
 print("Running Model...")
@@ -185,13 +186,11 @@ for j in range(1,Run):
     Ntot=ClTot(trial[0], trial[1], trial[2], trial[3], LCl, Af, Leth, Lth, Am, 
                Js, Jeth, Jth, Jm, Nr, depth)
     # Calculate L2 norm and likelihood
-    L2=np.sum(np.square((Ntot-Cl)/Clerr))
+    L2=np.sum(np.square((Ntot-Cl))/np.square(Clerr))
     #M[j,4] = L2
-    M[j,4]=np.exp(-.5*L2)
+    M[j,4]=float(np.exp(-.5*L2))
     # Calculate ratio of likelihoods between current and previous model
-    a=float(M[j,4])
-    b=float(M[j-1,4])
-    LRat=a/b
+    LRat=M[j,4]/M[j-1,4]
 
 #    test.append((LRat > np.random.uniform(0,2) and 
 #        trial[0] >= MinTexTest and trial[0] <= MaxTexTest and
@@ -216,12 +215,12 @@ for j in range(1,Run):
     else:
         M[j][0:4]=M[j-1][0:4] # Set coordinates of tested model to prev. value
         M[j,4]=M[j-1,4] # Update likelihood of current model to previous value
-    M[j,5]=float(s)/Ran # Record acceptance rate at this step
+    M[j,5]=float(s)/float(Ran) # Record acceptance rate at this step
 
 #%%
 print("Generating statistics...")   
- 
-RM=RM[Burn::,:] # Delete models from burn-in period
+RM=RM[0:s,:] # Delete empty rows if retained models do not meet goal
+RM=RM[Burn:,:] # Delete models from burn-in period
 RMThin=RM[1::Thin,:] # Thin retained models for statistical analysis
 RMThin=RMThin[np.argsort(-RMThin[:,4],0)] # Sort retained models by likelihood
 
@@ -373,7 +372,7 @@ for i in range(len(TexRPThin)):
 plot.plot(NtotM/(10**6), dp, color='g', linewidth=1.5, label='Mean') # Mean model as green line
 plot.plot(NtotMed/(10**6), dp, color='c', linewidth=1.5, label='Median') # Median model as cyan line
 plot.plot(NtotBest/(10**6), dp, color='r', linewidth=1.5, label='Best Fit') # Best fit model as red line
-plot.errorbar(Cl/(10**6), depth, xerr=Clerr, fmt='bs', markerfacecolor='none', label='data') # Data
+plot.errorbar(Cl/(10**6), depth, xerr=Clerr/(10**6), fmt='bs', markerfacecolor='none', label='data') # Data
 plot.legend(loc=4)
 
 # Add info and save
