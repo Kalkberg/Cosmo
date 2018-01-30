@@ -8,7 +8,7 @@ Written by Petr Yakovlev, Montana Bureau of Mines and Geology
 Required Packages:
     Numpy Matplotlib Glob Shutil Scipy
 
-Usage:
+Inputs:
     36Cl_Calc.py Data Priors Output PDFLatex_Path
     Data - File name of csv file containing sample information with columns:
         1-36Cl concentration, 2-Error on 36Cl, 3-Sampe depth in cm
@@ -16,7 +16,6 @@ Usage:
         input information derived from outher sources.
     Output - Base file name of the output files desired by the user
     PDFLatex_Path - Path to pdflatex.exe from your LaTeX distribution
-    Ex: 36Cl_Calc.py Kumkuli Params Results C:/Program Files/LaTeX
 
 Outputs:
     Output.pdf - PDf of model statistics and charts.
@@ -36,7 +35,6 @@ import numpy as np
 import matplotlib.pyplot as plot
 from matplotlib.lines import Line2D
 import os
-import sys
 import scipy
 from argparse import Namespace
 import subprocess
@@ -45,45 +43,24 @@ from PyPDF2 import PdfFileMerger
 import progressbar
 import seaborn as sns
 
-# Translate inputs to variables
-#Data_File = sys.argv[1]+'.txt'
-#Prior_File = sys.argv[2]+'.txt'
-#Out_File = sys.argv[3]
-#PDFLatex = sys.argv[4]+'pdflatex.exe'   
+#%%
+##
+## ONLY CHANGE THESE VALUES
+##
 
+# File containing sample data
 Data_File = 'West_Data.csv'
-Prior_File ='Priors.csv'
-Out_File = 'Results'
+
+# File containing model priors
+Prior_File ='Priors_West_Old_Fixed.csv'
+
+# Root name of PDF document created by this script
+Out_File = 'Priors_West_Old_Fixed'
+
+# File path to PDFLatex exe
 PDFLatex = r'C:\Program Files (x86)\MiKTeX 2.9\miktex\bin\pdflatex.exe'   
 
-
-## Check number of input arguments, if not four (Python 5), print error, usage
-## and terminate program
-#if len(sys.argv)==5:
-#    print("Data file set to %s" % Data_File)
-#    print("Priors file set to %s" % Prior_File)
-#    print("Output file set to %s" % Out_File)
-#else:
-#    print("Error: Wrong number of input arguments!")
-#    print("Usage:36Cl_Calc.py Data Priors Output PDFLatex_Path")
-#    print("Data - File name of txt file containing sample information")
-#    print("Priors - File name of txt file containing model priors, run parameters, and input information derived from outher sources.")
-#    print("Output - Base file name of the output files desired by the user")
-#    print("PDFLatex_Path - Path to pdflatex.exe from your LaTeX distribution")
-#    print("Ex: 36Cl_Calc.py Kumkuli Params Results C:/Program Files/LaTeX")
-#    sys.exit()
-    
-## Read input files to variables
-#with open(Data_File,'r') as infile:
-#    Cl, Clerr, depth = infile.read()
-#    infile = None
-#with open(Prior_File,'r') as infile:
-#   (Run, Ret, Burn, Thin, TexStep, InhStep, RdStep, EroStep, MaxTexTest, 
-#   MinTexTest, MaxInhTest, MinInhTest, MaxRdTest, MinRdTest, MaxEroTest, 
-#   MinEroTest, MaxTotE, MinTotE, TexStart, RdStart, InhStart, EroStart, Sn, 
-#   St, LCl, Nr, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm) = infile.read()
-#   infile = None
-
+#%%
 # Read input files
 Cl = np.genfromtxt(Data_File,delimiter=',',usecols=0)
 Clerr = np.genfromtxt(Data_File,delimiter=',',usecols=1)
@@ -103,12 +80,11 @@ Thin = int(Thin)
 
 # Pre-allocate matrices
 M = np.zeros((Run,6))
-RM = np.zeros((Ret+Burn+1,6))    
+RM = np.zeros((Ret*Thin+Burn+1,6))    
 
 # Set counters
 s = 0 # Retained models
 Ran = 0 # Tested models
-q = 0 # Models plotted
 
 PlotPoints=3000 # Set number of points to plot on scatterplots
 
@@ -122,12 +98,12 @@ Steps=np.array([TexStep, InhStep, RdStep, EroStep])
 M[0][0:4] = [TexStart,InhStart,RdStart,EroStart]
 
 # Define function to estimate total 36Cl at range of depths defined by vector depth
-def ClTot(Tex, Inh, Rd, Ero, LCl, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm, Nr, 
-          depth):
+def ClTot(Tex, Inh, Rd, Ero, Sn, St, LCl, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm,
+          Nr, depth):
     # Time factors with Erosion
     TcosmS = (1-np.exp(-(LCl+Rd*Ero/Af)*Tex))/(LCl+Rd*Ero/Af)
     TcosmEth = (1-np.exp(-(LCl+Rd*Ero/Leth)*Tex))/(LCl+Rd*Ero/Leth)
-    TcosmTh = (1-np.exp(-(LCl+Rd*Ero/Af)*Lth))/(LCl+Rd*Ero/Lth)
+    TcosmTh = (1-np.exp(-(LCl+Rd*Ero/Lth)*Tex))/(LCl+Rd*Ero/Lth)
     TcosmM = (1-np.exp(-(LCl+Rd*Ero/Am)*Tex))/(LCl+Rd*Ero/Am)
     
     # Number of 36Cl atoms produced by each pathway
@@ -155,8 +131,8 @@ def DenSurf(x,y):
     return density_i, density
 
 # Calculate likelihood of first model and store to model matrix
-Ntot=ClTot(M[0,0], M[0,1], M[0,2], M[0,3], LCl, Af, Leth, Lth, Am, Js, Jeth, 
-           Jth, Jm, Nr, depth)
+Ntot=ClTot(M[0,0], M[0,1], M[0,2], M[0,3], Sn, St, LCl, Af, Leth, Lth, Am, Js, 
+           Jeth, Jth, Jm, Nr, depth)
 L2=np.sum(np.square(Ntot-Cl)/np.square(Clerr))
 #M[0,4] = L2
 M[0,4]=np.exp(-.5*L2)
@@ -165,12 +141,8 @@ M[0,5]=np.nan
 #%%
 print("Running Model...")
 
-#test=[]
-#tested = np.empty([1,4])
-#LRatRet = []
+LRatRec = []
 bar = progressbar.ProgressBar(max_value=Ret*Thin+Burn)
-
-
 # Run model
 #
 for j in range(1,Run):
@@ -183,23 +155,16 @@ for j in range(1,Run):
     # Select next model to test
     trial=M[j-1][0:4]+np.squeeze(np.random.normal(0,1,[1,4])*Steps)
     # Calculate total 36Cl for new parameters
-    Ntot=ClTot(trial[0], trial[1], trial[2], trial[3], LCl, Af, Leth, Lth, Am, 
-               Js, Jeth, Jth, Jm, Nr, depth)
+    Ntot=ClTot(trial[0], trial[1], trial[2], trial[3], Sn, St, LCl, Af, Leth, 
+               Lth, Am, Js, Jeth, Jth, Jm, Nr, depth)
+    
     # Calculate L2 norm and likelihood
     L2=np.sum(np.square((Ntot-Cl))/np.square(Clerr))
     #M[j,4] = L2
     M[j,4]=float(np.exp(-.5*L2))
     # Calculate ratio of likelihoods between current and previous model
     LRat=M[j,4]/M[j-1,4]
-
-#    test.append((LRat > np.random.uniform(0,2) and 
-#        trial[0] >= MinTexTest and trial[0] <= MaxTexTest and
-#        trial[1] >= MinInhTest and trial[1] <= MaxInhTest and
-#        trial[2] >= MinRdTest and trial[2] <= MaxRdTest and
-#        trial[3] >= MinEroTest and trial[3] <= MaxEroTest and
-#        trial[0]*trial[3] >= MinTotE and trial[0]*trial[3] <= MaxTotE))
-#    tested = np.append(tested, np.expand_dims(trial,0), axis=0)
-#    LRatRet.append(LRat)
+    LRatRec += [LRat]
     # Retain models if likelihood ratio is greater than a random number, and 
     # parameters are within limits set by run parameters
     if (LRat > np.random.uniform(0,1) and 
@@ -283,11 +248,11 @@ with open(Out_File+'_Retained_Models.csv', 'w') as RMcsvfile:
     for row in RMThin:
         retainedmodels.writerow(row)
         
-# Savetested models to a csv
-with open(Out_File+'_Tested_Models.csv', 'w') as TMcsvfile:
-    testedmodels = csv.writer(TMcsvfile)
-    for row in M:
-        testedmodels.writerow(row)
+## Savetested models to a csv
+#with open(Out_File+'_Tested_Models.csv', 'w') as TMcsvfile:
+#    testedmodels = csv.writer(TMcsvfile)
+#    for row in M:
+#        testedmodels.writerow(row)
         
 #%%
 print("Generating Plots...")
@@ -297,31 +262,35 @@ print("Generating Plots...")
 
 # Generate arguments to plug into LaTeX code
 Targs=Namespace(TexM=TexM, TexMed=TexMed, TexSD=TexSD, BestTex=BestTex,
-               InhM=InhM, InhMed=InhMed, InhSD=InhSD, BestInh=BestInh,
+               InhM='%e' %(InhM*(10**6)), InhMed='%e' %(InhMed*(10**6)), 
+               InhSD='%e' %(InhSD*(10**6)), BestInh='%e' %(BestInh*(10**6)),
                RdM=RdM, RdMed=RdMed, RdSD=RdSD, BestRd=BestRd,
                EroM=EroM, EroMed=EroMed, EroSD=EroSD, BestEro=BestEro)
 
 # LaTeX code to generate table
 content = r'''\documentclass[english]{article}
 \usepackage[latin9]{inputenc}
+\usepackage{pdflscape}
 \makeatletter
 \providecommand{\tabularnewline}{\\}
 \makeatother
 \usepackage{babel}
 \begin{document}
+\begin{landscape}
 \begin{tabular}{|c|c|c|c|c|c|}
 \cline{2-6} 
 \multicolumn{1}{c|}{} & Mean & Median & StDev & Best Fit & Unit\tabularnewline
 \hline 
-w & %(TexM)s & %(TexMed)s & %(TexSD)s & %(BestTex)s & ka\tabularnewline
+Exposure Time & %(TexM)s & %(TexMed)s & %(TexSD)s & %(BestTex)s & ka\tabularnewline
 \hline 
-x & %(InhM)s & %(InhMed)s & %(InhSD)s & %(BestInh)s & g/cm^3\tabularnewline
+Inheritance & %(InhM)s & %(InhMed)s & %(InhSD)s & %(BestInh)s & atoms/g\tabularnewline
 \hline 
-y & %(RdM)s & %(RdMed)s & %(RdSD)s & %(BestRd)s & atoms/g\tabularnewline
+Soil Density & %(RdM)s & %(RdMed)s & %(RdSD)s & %(BestRd)s & g/cm^3\tabularnewline
 \hline 
-z & %(EroM)s & %(EroMed)s & %(EroSD)s & %(BestEro)s & cm/ka\tabularnewline
+Erosion Rate & %(EroM)s & %(EroMed)s & %(EroSD)s & %(BestEro)s & cm/ka\tabularnewline
 \hline 
 \end{tabular}
+\end{landscape}
 \end{document}
  '''
 
@@ -339,23 +308,29 @@ os.unlink('table.tex')
 os.unlink('table.log')
 os.unlink('table.aux')
 #%%
-# Calculate depth profiles for best fit, mean, and median models
-NtotBest = ClTot(BestTex, BestInh, BestRd, BestEro, LCl, Af, Leth, Lth, Am, Js, 
-               Jeth, Jth, Jm, Nr, dp)
-NtotM = ClTot(TexM, InhM, RdM, EroM, LCl, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm, 
-            Nr, dp)
-NtotMed = ClTot(TexMed, InhMed, RdMed, EroMed, LCl, Af, Leth, Lth, Am, Js, 
-                Jeth, Jth, Jm, Nr, dp)
+# Calculate depth profiles for best fit, mean, and median models using original units
+NtotBest = ClTot(BestTex*1000, BestInh*(10**6), BestRd, BestEro/1000, Sn, St, LCl, Af, Leth, 
+              Lth, Am, Js, Jeth, Jth, Jm, Nr, dp)
+NtotM = ClTot(TexM*1000, InhM*(10**6), RdM, EroM/1000, Sn, St, LCl, Af, Leth, 
+              Lth, Am, Js, Jeth, Jth, Jm, Nr, dp)
+NtotMed = ClTot(TexMed*1000, InhMed*(10**6), RdMed, EroMed/1000, Sn, St, LCl, 
+                Af, Leth, Lth, Am, Js, Jeth, Jth, Jm, Nr, dp)
+
+#%%
+# Create figure 1
+#
+fig1, ax1 = plot.subplots()
 
 # Pre-allocate matrix for depth profile plot
 MCl = np.zeros([len(TexRPThin)*len(dp),2]) 
 
-# Create figure 1
-#
+# Set counter of models plotted
+q = 0 
+
 # Calculate depth profiles for each retained model in set thinned for plotting
 for i in range(len(TexRPThin)):
-    NtotPlot = ClTot(TexRPThin[i], InhRPThin[i], RdRPThin[i], EroRPThin[i],
-                     LCl, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm, Nr, dp)
+    NtotPlot = ClTot(TexRPThin[i]*1000, InhRPThin[i]*(10**6), RdRPThin[i], EroRPThin[i]/1000,
+                     Sn, St, LCl, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm, Nr, dp)
     q = q + 1 # Increase counter by one
     MCl[q*len(dp)-(len(dp)):q*len(dp),:] = np.transpose(np.array([NtotPlot, dp])) # Add to array of retained values for density plot
     if LikNormPThin[i] <= LikNormMid: # Set color to plot based on likelihood
@@ -369,13 +344,19 @@ for i in range(len(TexRPThin)):
                 0] #B
     plot.plot(NtotPlot/(10**6),dp, color=color,linewidth=0.5)
 
-plot.plot(NtotM/(10**6), dp, color='g', linewidth=1.5, label='Mean') # Mean model as green line
-plot.plot(NtotMed/(10**6), dp, color='c', linewidth=1.5, label='Median') # Median model as cyan line
-plot.plot(NtotBest/(10**6), dp, color='r', linewidth=1.5, label='Best Fit') # Best fit model as red line
-plot.errorbar(Cl/(10**6), depth, xerr=Clerr/(10**6), fmt='bs', markerfacecolor='none', label='data') # Data
+plot.plot(NtotM/(10**6), dp, color='g', linewidth=1.5, 
+          label='Mean') # Mean model as green line
+plot.plot(NtotMed/(10**6), dp, color='c', linewidth=1.5, 
+          label='Median') # Median model as cyan line
+plot.plot(NtotBest/(10**6), dp, color='r', linewidth=1.5, 
+          label='Best Fit') # Best fit model as red line
+plot.errorbar(Cl/(10**6), depth, xerr=2*Clerr/(10**6), 
+              fmt='bs', markerfacecolor='white', label='data', zorder=10)
 plot.legend(loc=4)
 
 # Add info and save
+ax1.set_xlim(0,(np.max(Cl+Clerr)*1.5)/10**6)
+ax1.set_ylim(0,np.max(depth))
 plot.xlabel('Atoms 36Cl/g x 10^6')
 plot.ylabel('Depth (cm)')
 plot.gca().invert_yaxis()
@@ -385,23 +366,22 @@ plot.close('all')
 
 #%%
 # Create figure 2
-#
-## Calculate point density
-#density_i, density = DenSurf (MCl[:,0],MCl[:,1])
-#
-## Plot interpolated density surface
-#plot.imshow(density_i, vmin=density.min(),vmax=density.max())
-#plot.colorbar()
+
+# Plot interpolated density surface
 fig2, ax2 = plot.subplots()
+
 # Create density plot, making sure origin is included
-sns.kdeplot(np.append(MCl[:,0]/(10**6),0),np.append(MCl[:,1],0),n_levels=60, 
-                      shade=True, cmap='viridis', ax=ax2)
+ax2.hexbin(MCl[:,0]/(10**6),MCl[:,1],cmap='viridis', linewidths=0.1,
+           extent=[0,(np.max(Cl+Clerr)*1.5)/10**6,
+                   0,np.max(depth)],
+           rasterized=True)
 
 # Plot model results and data
 plot.plot(NtotM/(10**6), dp, 'r:', linewidth=1.5, label='Mean')
 plot.plot(NtotMed/(10**6), dp, 'r--', linewidth=1.5, label='Median')
 plot.plot(NtotBest/(10**6), dp, 'r', linewidth=1.5, label='Best Fit')
-plot.errorbar(Cl/(10**6), depth, xerr=Clerr/(10**6), fmt='bs', markerfacecolor='white', label='data')
+plot.errorbar(Cl/(10**6), depth, xerr=2*Clerr/(10**6), 
+              fmt='bs', markerfacecolor='white', label='data', zorder=10)
 plot.legend(loc=4)
 
 # Add info and save
@@ -416,22 +396,22 @@ plot.close('all')
 
 #%%
 # Make figure 3
-f, ((ax1, ax2), (ax3, ax4)) = plot.subplots(2,2)
-ax1.plot(np.sort(TexR),scipy.stats.gaussian_kde(np.sort(TexR))(np.sort(TexR)))
+fig, ((ax1, ax2), (ax3, ax4)) = plot.subplots(2,2)
+sns.distplot(TexR,ax=ax1)
 ax1.locator_params(nbins=3)
 ax1.set_xlabel('Exposure Age (ka)')
-ax2.plot(np.sort(RdR),scipy.stats.gaussian_kde(np.sort(RdR))(np.sort(RdR)))
+sns.distplot(RdR,ax=ax2)
 ax2.locator_params(nbins=3)
 ax2.set_xlabel('Rock Density (g/cm^3)')
-ax3.plot(np.sort(InhR),scipy.stats.gaussian_kde(np.sort(InhR))(np.sort(InhR)))
+sns.distplot(InhR,ax=ax3)
 ax3.locator_params(nbins=3)
 ax3.set_xlabel('Inheritance\n(Atoms 36Cl/g x 10^6)')
-ax4.plot(np.sort(EroR),scipy.stats.gaussian_kde(np.sort(EroR))(np.sort(EroR)))
+sns.distplot(EroR,ax=ax4)
 ax4.locator_params(nbins=3)
 ax4.set_xlabel('Erosion Rate (cm/kyr)')
-f.suptitle('Kernel Density Functions of Retained Models')
-f.subplots_adjust(top=.92)
-plot.tight_layout()
+fig.suptitle('Retained Models')
+#f.subplots_adjust(top=.9, bottom=.1)
+plot.tight_layout(pad=1.5, w_pad=.5,h_pad=1)
 plot.savefig('f3.pdf')
 plot.close('all')
 
@@ -443,7 +423,7 @@ f, ((ax1, ax2, ax3), (ax4, ax5, ax6)) = plot.subplots(2, 3, subplot_kw=dict(adju
 ax1.set_xlim(TexR.min(),TexR.max())
 ax1.set_ylim(RdR.min(),RdR.max())
 # Calculate point density
-sns.kdeplot(TexR,RdR,n_levels=60, shade=True, cmap='viridis', ax=ax1)
+ax1.hexbin(TexR,RdR,cmap='viridis', linewidths=0.1,rasterized=True)
 
 # Plot best fit, mean and median models
 ax1.plot(BestTex,BestRd, 'r', marker=(5,1)) #Plot best fit value as a red star
@@ -459,7 +439,7 @@ ax1.set_ylabel('Rock Density (g/cm^3)', fontsize=8)
 ax2.set_xlim(TexR.min(),TexR.max())
 ax2.set_ylim(EroR.min(),EroR.max())
 # Calculate point density
-sns.kdeplot(TexR,EroR,n_levels=60, shade=True, cmap='viridis', ax=ax2)
+ax2.hexbin(TexR,EroR, cmap='viridis', linewidths=0.1,rasterized=True)
 
 # Plot best fit, mean and median models
 ax2.plot(BestTex,BestEro, 'r', marker=(5,1)) 
@@ -473,7 +453,7 @@ ax2.set_ylabel('Erosion Rate (cm/kyr)', fontsize=8)
 
 # Create subplot 3
 # Calculate point density
-sns.kdeplot(TexR,InhR,n_levels=60, shade=True, cmap='viridis', ax=ax3)
+ax3.hexbin(TexR,InhR, cmap='viridis', linewidths=0.1,rasterized=True)
 # Plot best fit, mean and median models
 ax3.plot(BestTex,BestInh, 'r', marker=(5,1)) 
 ax3.plot(TexM,InhM, 'gd') 
@@ -488,7 +468,7 @@ ax3.set_ylabel('Inheritance\n(Atoms 36Cl/g x 10^6)', fontsize=8)
 
 # Create subplot 4
 # Calculate point density
-sns.kdeplot(RdR,EroR,n_levels=60, shade=True, cmap='viridis', ax=ax4)
+ax4.hexbin(RdR,EroR, cmap='viridis', linewidths=0.1,rasterized=True)
 # Plot best fit, mean and median models
 ax4.plot(BestRd,BestEro, 'r', marker=(5,1)) 
 ax4.plot(RdM,EroM, 'gd') 
@@ -503,7 +483,7 @@ ax4.set_ylabel('Erosion Rate (cm/kyr)', fontsize=8)
 
 # Create subplot 5
 # Calculate point density
-sns.kdeplot(RdR,InhR,n_levels=60, shade=True, cmap='viridis', ax=ax5)
+ax5.hexbin(RdR,InhR, cmap='viridis', linewidths=0.1,rasterized=True)
 # Plot best fit, mean and median models
 ax5.plot(BestRd,BestInh, 'r', marker=(5,1)) 
 ax5.plot(RdM,InhM, 'gd') 
@@ -518,7 +498,7 @@ ax5.set_ylabel('Inheritance\n(Atoms 36Cl/g x 10^6)', fontsize=8)
 
 # Create subplot 6
 # Calculate point density
-sns.kdeplot(EroR,InhR,n_levels=60, shade=True, cmap='viridis', ax=ax6)
+ax6.hexbin(EroR,InhR, cmap='viridis', linewidths=0.1,rasterized=True)
 # Plot best fit, mean and median models
 ax6.plot(BestEro,BestInh, 'r', marker=(5,1)) 
 ax6.plot(EroM,InhM, 'gd') 
@@ -548,7 +528,7 @@ plot.close('all')
 #
 f, ax1 = plot.subplots()
 # Plot and label interpolated density surface
-sns.kdeplot(TexR,EroR,n_levels=60, shade=True, cmap='viridis', ax=ax1)
+ax1.hexbin(TexR,EroR, cmap='viridis', linewidths=0.1)
 
 # Plot best fit, mean and median models
 ax1.plot(BestTex,BestEro, 'r', marker=(5,1)) 
@@ -580,14 +560,14 @@ for i in range(0,len(TexRPThin)):
     if LikNormPThin[i] <= LikNormMid: # Set color to plot based on likelihood
         color = [1, 1 , (200 * ((LikNormMid - LikNormPThin[i])/
                                 (LikNormMid - LikNormMin)))/255]
-        size=.5
+        size=2
     elif LikNormPThin[i] > LikNormMid:
         color = [(255 - (205 * (1 - (LikNormMax - LikNormPThin[i])/
                                 (LikNormMax - LikNormMid))))/255, # R
                  (255 - (205 * (1 - (LikNormMax - LikNormPThin[i])/
                                 (LikNormMax - LikNormMid))))/255, # G
                 0] #B
-        size=1
+        size=3
     ax1.plot(TexRPThin[i], RdRPThin[i], 'o', markerfacecolor=color, 
              markeredgecolor='none', markersize=size)
     ax2.plot(TexRPThin[i], EroRPThin[i], 'o', markerfacecolor=color, 
@@ -679,14 +659,14 @@ for i in range(0,len(TexRPThin)):
     if LikNormPThin[i] <= LikNormMid: # Set color to plot based on likelihood
         color = [1, 1 , (200 * ((LikNormMid - LikNormPThin[i])/
                                 (LikNormMid - LikNormMin)))/255]
-        size=.5
+        size=3
     elif LikNormPThin[i] > LikNormMid:
         color = [(255 - (205 * (1 - (LikNormMax - LikNormPThin[i])/
                                 (LikNormMax - LikNormMid))))/255, # R
                  (255 - (205 * (1 - (LikNormMax - LikNormPThin[i])/
                                 (LikNormMax - LikNormMid))))/255, # G
                 0] #B
-        size=1
+        size=6
     ax1.plot(TexRPThin[i], EroRPThin[i], 'o', markerfacecolor=color, 
              markeredgecolor='none', markersize=size)
     
@@ -712,19 +692,17 @@ plot.close('all')
 
 #%%
 # Create Figure 8
-#
-
 f, ax = plot.subplots()
-ax.plot(M[3:Ran,5]*100)
+ax.plot(M[Burn:Ran,5]*100)
 ax.set_xlabel('Trial Number')
 ax.set_ylabel('Retention Rate (%)')
 f.suptitle('Model Retention Rate', fontsize=14)
-plot.tight_layout()
+plot.tight_layout(pad=1.5, w_pad=.5,h_pad=1)
 plot.savefig('f8.pdf')
 plot.close('all')
 #%%
 # Combine PDFs and delete old ones
-pdfs = ['f1.pdf', 'f2.pdf', 'f3.pdf', 'f4.pdf', 'f5.pdf', 'f6.pdf', 'f7.pdf', 
+pdfs = ['table.pdf','f1.pdf', 'f2.pdf', 'f3.pdf', 'f4.pdf', 'f5.pdf', 'f6.pdf', 'f7.pdf', 
         'f8.pdf']
 merger = PdfFileMerger()
 for pdf in pdfs:
