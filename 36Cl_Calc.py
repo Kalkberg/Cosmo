@@ -52,10 +52,10 @@ import seaborn as sns
 Data_File = 'West_Data.csv'
 
 # File containing model priors
-Prior_File ='Priors_West_Old_Fixed.csv'
+Prior_File ='Priors_West_1pt6dens.csv'
 
 # Root name of PDF document created by this script
-Out_File = 'Priors_West_Old_Fixed'
+Out_File = 'Priors_West_1pt6dens'
 
 # File path to PDFLatex exe
 PDFLatex = r'C:\Program Files (x86)\MiKTeX 2.9\miktex\bin\pdflatex.exe'   
@@ -646,7 +646,7 @@ Mean = Line2D([0],[0], linestyle='none', marker='d', markerfacecolor='green')
 Med = Line2D([0],[0], linestyle='none', marker='o', markerfacecolor='cyan')
 f.legend((BF, Mean, Med), ("Best Fit", "Mean", "Median"), 'upper right', 
          numpoints=1, fontsize=6, ncol=3)
-f.suptitle('Crossplots Colored by Density', x=.3, y=.98, fontsize=14)
+f.suptitle('Crossplots Colored by Likelihood', x=.3, y=.98, fontsize=14)
 f.subplots_adjust(top=.92)
 plot.savefig('f6.pdf')
 plot.close('all')
