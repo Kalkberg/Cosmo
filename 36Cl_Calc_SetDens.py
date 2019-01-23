@@ -26,6 +26,8 @@ Outputs:
         likelihood, 6-Acceptance rate at that step
 
 Note: 36_Calc.py must be located in the same directory as your input files!
+
+Note: This version uses a constant density.
         
 """
 #%%
@@ -42,8 +44,6 @@ import csv
 from PyPDF2 import PdfFileMerger
 import progressbar #progressbar2, not outdated progressbar
 import seaborn as sns
-import win32com.client as win32
-
 
 #%%
 ##
@@ -54,45 +54,33 @@ import win32com.client as win32
 Data_File = 'West_Data.csv'
 
 # File containing model priors
-Prior_File ='Priors_West_SpreadCalcOnly_2pt7dens.csv'
-
-# Schimmelpfenning 2009 spreadsheet with elemental and scaling values 
-Spreadsheet ='Schimmelpfennig 2009 Kumkuli West 2019.xlsx'
+Prior_File ='Priors_West_2pt7dens.csv'
 
 # Root name of PDF document created by this script
-Out_File = 'Priors_West_SpreadCalcOnly_2pt7dens'
+Out_File = 'Priors_West_2pt7dens'
 
 # File path to PDFLatex exe
 PDFLatex = r'C:\Program Files (x86)\MiKTeX 2.9\miktex\bin\pdflatex.exe'   
 
 #%%
-# Read input files TODO: Clean up values not obtained from spreadsheet
+# Read input files
+Cl = np.genfromtxt(Data_File,delimiter=',',usecols=0)
+Clerr = np.genfromtxt(Data_File,delimiter=',',usecols=1)
+depth = np.genfromtxt(Data_File,delimiter=',',usecols=2)
 (Run, Ret, Burn, Thin, TexStep, InhStep, RdStep, EroStep, 
     MaxTexTest, MinTexTest, MaxInhTest, MinInhTest, MaxRdTest, MinRdTest, 
     MaxEroTest, MinEroTest, MaxTotE, MinTotE, 
     TexStart, RdStart, InhStart, EroStart, 
     Sn, St, LCl, Nr, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm
     ) = np.genfromtxt(Prior_File,delimiter=',').tolist()
+## Only RdStart is used, others are not
 
-Run=int(Run)
-Thin=int(Thin)
-Burn=int(Burn)
-Ret=int(Ret)
 
-# Open spreadsheet and calculate
-excel = win32.Dispatch('Excel.Application')
-wb = excel.Workbooks.Open(os.getcwd()+'\\'+Spreadsheet)
-ws1 = wb.Worksheets(r'sample calculations')
-ws2 = wb.Worksheets(r'depth profile')
-ws1.EnableCalculation = True
-ws2.EnableCalculation = True
-ws1.Calculate()
-ws2.Calculate()
-
-# Get sample data
-Cl = np.asarray(ws2.Range("J41:J46").Value)[:,0] # needs to be 1D array
-Clerr = np.asarray(ws2.Range("K41:K46").Value)[:,0] # needs to be 1D array
-depth = np.asarray(ws2.Range("I41:I46").Value)[:,0] # needs to be 1D array
+# Make sure ints are ints
+Run = int(Run)
+Ret = int(Ret)
+Burn = int(Burn)
+Thin = int(Thin)
 
 # Pre-allocate matrices
 M = np.zeros((Run,6))
@@ -101,60 +89,36 @@ RM = np.zeros((Ret*Thin+Burn+1,6))
 # Set counters
 s = 0 # Retained models
 Ran = 0 # Tested models
+
 PlotPoints=3000 # Set number of points to plot on scatterplots
 
 # Create vector for plotting depth profiles
-dp = np.asarray(ws2.Range("A41:A60").Value)[:,0]
+dp = np.linspace(0,np.max(depth)*1.2,num=201)
 
 # Create vector of steps to take
 Steps=np.array([TexStep, InhStep, RdStep, EroStep])
 
 # Set value of first model
 M[0][0:4] = [TexStart,InhStart,RdStart,EroStart]
-  
-#%%
-
-def ClTot(Tex,Inh,Rd,Ero):
-    ws1.Cells(22,4).Value=Tex
-    ws1.Cells(19,4).Value=Inh
-    ws1.Cells(10,4).Value=Rd
-    ws1.Cells(25,4).Value=Ero/10 # cm/yr in inputs, mm/ka in spreadsheet
-    ws1.Calculate()
-    ws2.Calculate()
-    Ntot=np.array([ws2.Cells(56,6).Value, ws2.Cells(55,6).Value,
-                   ws2.Cells(53,6).Value, ws2.Cells(52,6).Value,
-                   ws2.Cells(44,6).Value, ws2.Cells(48,6).Value])
-#    np.asarray(ws2.Range("F56,F55,F53,F52,F44,F48").Value)[:,0]
-    return Ntot
-
-def ClTotSmooth(Tex,Inh,Rd,Ero):
-    ws1.Cells(22,4).Value=Tex
-    ws1.Cells(19,4).Value=Inh
-    ws1.Cells(10,4).Value=Rd
-    ws1.Cells(25,4).Value=Ero/10 # cm/yr in inputs, mm/ka in spreadsheet
-    ws1.Calculate()
-    ws2.Calculate()
-    Ntot=np.asarray(ws2.Range("F41:F60").Value)[:,0]
-    return Ntot
 
 # Define function to estimate total 36Cl at range of depths defined by vector depth
-#def ClTot(Tex, Inh, Rd, Ero, Sn, St, LCl, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm,
-#          Nr, depth):
-#    # Time factors with Erosion
-#    TcosmS = (1-np.exp(-(LCl+Rd*Ero/Af)*Tex))/(LCl+Rd*Ero/Af)
-#    TcosmEth = (1-np.exp(-(LCl+Rd*Ero/Leth)*Tex))/(LCl+Rd*Ero/Leth)
-#    TcosmTh = (1-np.exp(-(LCl+Rd*Ero/Lth)*Tex))/(LCl+Rd*Ero/Lth)
-#    TcosmM = (1-np.exp(-(LCl+Rd*Ero/Am)*Tex))/(LCl+Rd*Ero/Am)
-#    
-#    # Number of 36Cl atoms produced by each pathway
-#    Ns = TcosmS*Js*np.exp((-depth*Rd)/Af) # Spallation
-#    Neth = TcosmEth*Jeth*np.exp((-depth*Rd)/Leth) # Epithermal neutrons
-#    Nth = TcosmTh*Jth*np.exp((-depth*Rd)/Lth) # Thermal neutrons
-#    Nm = TcosmM*Jm*np.exp((-depth*Rd)/Am) # Muons
-#    
-#    #Total 36Cl
-#    Ntot=Sn*St*(Ns+Neth+Nth+Nm)+Nr+Inh
-#    return Ntot
+def ClTot(Tex, Inh, Rd, Ero, Sn, St, LCl, Af, Leth, Lth, Am, Js, Jeth, Jth, Jm,
+          Nr, depth):
+    # Time factors with Erosion
+    TcosmS = (1-np.exp(-(LCl+Rd*Ero/Af)*Tex))/(LCl+Rd*Ero/Af)
+    TcosmEth = (1-np.exp(-(LCl+Rd*Ero/Leth)*Tex))/(LCl+Rd*Ero/Leth)
+    TcosmTh = (1-np.exp(-(LCl+Rd*Ero/Lth)*Tex))/(LCl+Rd*Ero/Lth)
+    TcosmM = (1-np.exp(-(LCl+Rd*Ero/Am)*Tex))/(LCl+Rd*Ero/Am)
+    
+    # Number of 36Cl atoms produced by each pathway
+    Ns = TcosmS*Js*np.exp((-depth*Rd)/Af) # Spallation
+    Neth = TcosmEth*Jeth*np.exp((-depth*Rd)/Leth) # Epithermal neutrons
+    Nth = TcosmTh*Jth*np.exp((-depth*Rd)/Lth) # Thermal neutrons
+    Nm = TcosmM*Jm*np.exp((-depth*Rd)/Am) # Muons
+    
+    #Total 36Cl
+    Ntot=Sn*St*(Ns+Neth+Nth+Nm)+Nr+Inh
+    return Ntot
 
 # Define function to create density surface from unequaly spaced data
 def DenSurf(x,y):
@@ -171,7 +135,8 @@ def DenSurf(x,y):
     return density_i, density
 
 # Calculate likelihood of first model and store to model matrix
-Ntot=ClTot(M[0,0], M[0,1], M[0,2], M[0,3])
+Ntot=ClTot(M[0,0], M[0,1], M[0,2], M[0,3], Sn, St, LCl, Af, Leth, Lth, Am, Js, 
+           Jeth, Jth, Jm, Nr, depth)
 L2=np.sum(np.square(Ntot-Cl)/np.square(Clerr))
 #M[0,4] = L2
 M[0,4]=np.exp(-.5*L2)
@@ -195,9 +160,9 @@ for j in range(1,Run):
     trial=M[j-1][0:4]+np.squeeze(np.random.normal(0,1,[1,4])*Steps)
     trial[2]=RdStart # Force constant Rd
     
-    # Calculate new cosmogenic parameters
     # Calculate total 36Cl for new parameters
-    Ntot=ClTot(trial[0], trial[1], trial[2], trial[3])
+    Ntot=ClTot(trial[0], trial[1], trial[2], trial[3], Sn, St, LCl, Af, Leth, 
+               Lth, Am, Js, Jeth, Jth, Jm, Nr, depth)
     
     # Calculate L2 norm and likelihood
     L2=np.sum(np.square((Ntot-Cl))/np.square(Clerr))
@@ -231,10 +196,10 @@ RMThin=RM[1::Thin,:] # Thin retained models for statistical analysis
 RMThin=RMThin[np.argsort(-RMThin[:,4],0)] # Sort retained models by likelihood
 
 # Split retained models into parameter vectors for easier interpretation
-TexR=RMThin[:,0]    # Exposure Time (yr) now in kyr
-InhR=RMThin[:,1]    # Inheritance (atoms 36Cl)
+TexR=RMThin[:,0]/1000    # Exposure Time (yr) now in kyr
+InhR=RMThin[:,1]/(10**6)    # Inheritance (atoms 36Cl) now in atoms x 10^6
 RdR=RMThin[:,2]     # Rock Density (g/cm^3)
-EroR=RMThin[:,3]    # Erosion Rate (cm/yr)
+EroR=RMThin[:,3]*1000    # Erosion Rate (cm/yr) now in cm/kyr
 LikR=RMThin[:,4]    # Model likelihood
 
 #%%
@@ -301,15 +266,12 @@ print("Generating Plots...")
 # Create table of model results
 #
 
-# Generate arguments to plug into LaTeX code, changing units to ka, atoms/g 10^6, g/cm^3, and cm/ka
-Targs=Namespace(TexM=round(TexM/1000,2), TexMed=round(TexMed/1000,2), 
-                TexSD=round(TexSD/1000,2), BestTex=round(BestTex/1000,2),
-               InhM=round(InhM,0), InhMed=round(InhMed,0), InhSD=round(InhSD,0), 
-                   BestInh=round(BestInh,0),
-               RdM=round(RdM,2), RdMed=round(RdMed,2), RdSD=round(RdSD,2), 
-                        BestRd=round(BestRd,2),
-               EroM=round(EroM*1000,4), EroMed=round(EroMed*1000,4), 
-                        EroSD=round(EroSD*1000,4), BestEro=round(BestEro*1000,4))
+# Generate arguments to plug into LaTeX code
+Targs=Namespace(TexM=TexM, TexMed=TexMed, TexSD=TexSD, BestTex=BestTex,
+               InhM='%e' %(InhM*(10**6)), InhMed='%e' %(InhMed*(10**6)), 
+               InhSD='%e' %(InhSD*(10**6)), BestInh='%e' %(BestInh*(10**6)),
+               RdM=RdM, RdMed=RdMed, RdSD=RdSD, BestRd=BestRd,
+               EroM=EroM, EroMed=EroMed, EroSD=EroSD, BestEro=BestEro)
 
 # LaTeX code to generate table
 content = r'''\documentclass[english]{article}
@@ -351,15 +313,14 @@ proc.communicate()
 os.unlink('table.tex')
 os.unlink('table.log')
 os.unlink('table.aux')
-
 #%%
 # Calculate depth profiles for best fit, mean, and median models using original units
-
-NtotBest = ClTotSmooth(BestTex, BestInh, BestRd, BestEro)
-
-NtotM = ClTotSmooth(TexM, InhM, RdM, EroM)
-
-NtotMed = ClTotSmooth(TexMed, InhMed, RdMed, EroMed)
+NtotBest = ClTot(BestTex*1000, BestInh*(10**6), BestRd, BestEro/1000, Sn, St, LCl, Af, Leth, 
+              Lth, Am, Js, Jeth, Jth, Jm, Nr, dp)
+NtotM = ClTot(TexM*1000, InhM*(10**6), RdM, EroM/1000, Sn, St, LCl, Af, Leth, 
+              Lth, Am, Js, Jeth, Jth, Jm, Nr, dp)
+NtotMed = ClTot(TexMed*1000, InhMed*(10**6), RdMed, EroMed/1000, Sn, St, LCl, 
+                Af, Leth, Lth, Am, Js, Jeth, Jth, Jm, Nr, dp)
 
 #%%
 # Create figure 1
@@ -691,8 +652,3 @@ os.remove('f7.pdf')
 os.remove('f8.pdf')
 os.remove('f9.pdf')
 os.remove('f10.pdf')
-
-# release speadsheet
-ws = None
-wb = None
-excel = None

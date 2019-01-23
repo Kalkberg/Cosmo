@@ -51,16 +51,16 @@ import win32com.client as win32
 ##
 
 # File containing sample data
-Data_File = 'West_Data.csv'
+Data_File = 'East_Data.csv'
 
 # File containing model priors
 Prior_File ='Priors_West_SpreadCalcOnly_2pt7dens.csv'
 
 # Schimmelpfenning 2009 spreadsheet with elemental and scaling values 
-Spreadsheet ='Schimmelpfennig 2009 Kumkuli West 2019.xlsx'
+Spreadsheet ='Schimmelpfennig 2009 Kumkuli East 2019.xlsx'
 
 # Root name of PDF document created by this script
-Out_File = 'Priors_West_SpreadCalcOnly_2pt7dens'
+Out_File = 'Priors_East_SpreadCalcOnly_2pt7dens'
 
 # File path to PDFLatex exe
 PDFLatex = r'C:\Program Files (x86)\MiKTeX 2.9\miktex\bin\pdflatex.exe'   
@@ -90,9 +90,10 @@ ws1.Calculate()
 ws2.Calculate()
 
 # Get sample data
-Cl = np.asarray(ws2.Range("J41:J46").Value)[:,0] # needs to be 1D array
-Clerr = np.asarray(ws2.Range("K41:K46").Value)[:,0] # needs to be 1D array
-depth = np.asarray(ws2.Range("I41:I46").Value)[:,0] # needs to be 1D array
+Cl = np.asarray(ws2.Range("J41:J47").Value)[:,0] # needs to be 1D array
+Clerr = np.asarray(ws2.Range("K41:K47").Value)[:,0] # needs to be 1D array
+depth = np.asarray(ws2.Range("I41:I47").Value)[:,0] # needs to be 1D array
+
 
 # Pre-allocate matrices
 M = np.zeros((Run,6))
@@ -121,9 +122,10 @@ def ClTot(Tex,Inh,Rd,Ero):
     ws1.Cells(25,4).Value=Ero/10 # cm/yr in inputs, mm/ka in spreadsheet
     ws1.Calculate()
     ws2.Calculate()
-    Ntot=np.array([ws2.Cells(56,6).Value, ws2.Cells(55,6).Value,
-                   ws2.Cells(53,6).Value, ws2.Cells(52,6).Value,
-                   ws2.Cells(44,6).Value, ws2.Cells(48,6).Value])
+    Ntot=np.array([ws2.Cells(57,6).Value, ws2.Cells(56,6).Value,
+                   ws2.Cells(54,6).Value, ws2.Cells(53,6).Value,
+                   ws2.Cells(51,6).Value, ws2.Cells(49,6).Value,
+                   ws2.Cells(46,6).Value])
 #    np.asarray(ws2.Range("F56,F55,F53,F52,F44,F48").Value)[:,0]
     return Ntot
 
